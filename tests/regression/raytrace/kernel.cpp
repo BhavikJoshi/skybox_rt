@@ -3,6 +3,7 @@
 #include <vx_spawn.h>
 #include <cocogfx/include/color.hpp>
 #include <cocogfx/include/math.hpp>
+#include <vx_print.h>
 #include <graphics.h>
 
 using namespace graphics;
@@ -26,17 +27,16 @@ using namespace graphics;
 	OUTPUT_i(3, mask, x, y, color)
 
 void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
-	const cocogfx::ColorARGB out_color[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
+	const cocogfx::ColorARGB out_color[2] = {0xffffffff, 0xff000000};
 
-	for (;;) {
-		auto status = vx_rast();
-		if (0 == (status & 0x1))
-			return;
-		OUTPUT(out_color)
-	}
+	int col = blockIdx.x;
+    int row = blockIdx.y; 
+	auto dst = reinterpret_cast<uint32_t*>(arg->cbuf_addr + col * arg->cbuf_stride + row * arg->cbuf_pitch );
+	//vx_printf("row: %d, col: %d", row,col);
+	*dst = out_color[(col + row) % 2].value;
 }
 
 int main() {
 	auto __UNIFORM__ arg = (kernel_arg_t*)csr_read(VX_CSR_MSCRATCH);
-	return vx_spawn_threads(1, &arg->num_tasks, nullptr, (vx_kernel_func_cb)kernel_body, arg);
+	return vx_spawn_threads(2, &arg->dst_width, nullptr, (vx_kernel_func_cb)kernel_body, arg);
 }

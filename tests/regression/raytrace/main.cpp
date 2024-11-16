@@ -6,7 +6,13 @@
 #include <vortex.h>
 #include <cmath>
 #include <math.h>
+#include <cocogfx/include/imageutil.hpp>
+#include <graphics.h>
+#include <gfxutil.h>
+#include <VX_config.h>
+#include <algorithm>
 #include "common.h"
+#include <cocogfx/include/imageutil.hpp>
 
 #define FLOAT_ULP 6
 
@@ -22,7 +28,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static void generate_triangles(Tri[] tri, int N) {
+static void generate_triangles(Tri tri[], int N) {
     for (int i = 0; i < N; i++)
     {
         float3 r0{static_cast<float>(rand()) / RAND_MAX, static_cast<float>(rand()) / RAND_MAX, static_cast<float>(rand()) / RAND_MAX};
@@ -34,7 +40,7 @@ static void generate_triangles(Tri[] tri, int N) {
     }
 }
 
-static void UpdateNodeBounds(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint nodeIdx, uint &nodesUsed)  {
+static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint nodeIdx, uint &nodesUsed)  {
     BVHNode& node = bvhNode[nodeIdx];
     node.aabbMin = float3{ 1e30f , 1e30f , 1e30f };
     node.aabbMax = float3{ -1e30f, -1e30f, -1e30f };
@@ -42,7 +48,7 @@ static void UpdateNodeBounds(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N,
     {
         uint leafTriIdx = triIdx[first + i];
         Tri& leafTri = tri[leafTriIdx];
-        mode.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex0.x );
+        node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex0.x );
         node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex1.x );
         node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex2.x );
         node.aabbMin.y = fminf( node.aabbMin.y, leafTri.vertex0.y );
@@ -63,66 +69,66 @@ static void UpdateNodeBounds(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N,
     }
 }
 
-static void Subdivide(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint nodeIdx, uint &nodesUsed )
-{
-  // terminate recursion
-  BVHNode& node = bvhNode[nodeIdx];
-  if (node.triCount <= 2) return;
-  // determine split axis and position
-  float3 extent = node.aabbMax - node.aabbMin;
-  int axis = 0;
-  if (extent.y > extent.x && extent.y > extent.z) axis = 1;
-  if (extent.z > extent.x && extent.z > extent.y) axis = 2;
-  float splitPos;
-  if (axis == 0) splitPos = node.aabbMin.x + extent.x * 0.5f;
-  if (axis == 1) splitPos = node.aabbMin.y + extent.y * 0.5f;
-  if (axis == 2) splitPos = node.aabbMin.z + extent.z * 0.5f;
-  // in-place partition
-  int i = node.firstTriIdx;
-  int j = i + node.triCount - 1;
-  while (i <= j)
-  {
-    float3 comp;
-    if (axis == 0) comp = tri[triIdx[i]].centroid.x;
-    if (axis == 1) comp = tri[triIdx[i]].centroid.y;
-    if (axis == 2) comp = tri[triIdx[i]].centroid.z;
-    if (comp < splitPos)
-      i++;
-    else
-      auto temp = triIdx[i];
-      triIdx[i] = triIdx[j];
-      triIdx[j--] = temp;
-  }
-  // abort split if one of the sides is empty
-  int leftCount = i - node.firstTriIdx;
-  if (leftCount == 0 || leftCount == node.triCount) return;
-  // create child nodes
-  int leftChildIdx = nodesUsed++;
-  int rightChildIdx = nodesUsed++;
-  bvhNode[leftChildIdx].firstTriIdx = node.firstTriIdx;
-  bvhNode[leftChildIdx].triCount = leftCount;
-  bvhNode[rightChildIdx].firstTriIdx = i;
-  bvhNode[rightChildIdx].triCount = node.triCount - leftCount;
-  node.leftNode = leftChildIdx;
-  node.triCount = 0;
-  UpdateNodeBounds(bvhNode, tri, triIdx, N, leftChildIdx, nodesUsed);
-  UpdateNodeBounds(bvhNode, tri, triIdx, N, rightChildIdx, nodesUsed);
-  // recurse
-  Subdivide(bvhNode, tri, triIdx, N, leftChildIdx, nodesUsed);
-  Subdivide(bvhNode, tri, triIdx, N, rightChildIdx, nodesUsed);
-}
+// static void Subdivide(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint nodeIdx, uint &nodesUsed )
+// {
+//   // terminate recursion
+//   BVHNode& node = bvhNode[nodeIdx];
+//   if (node.triCount <= 2) return;
+//   // determine split axis and position
+//   float3 extent = node.aabbMax - node.aabbMin;
+//   int axis = 0;
+//   if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+//   if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+//   float splitPos;
+//   if (axis == 0) splitPos = node.aabbMin.x + extent.x * 0.5f;
+//   if (axis == 1) splitPos = node.aabbMin.y + extent.y * 0.5f;
+//   if (axis == 2) splitPos = node.aabbMin.z + extent.z * 0.5f;
+//   // in-place partition
+//   int i = node.firstTriIdx;
+//   int j = i + node.triCount - 1;
+//   while (i <= j)
+//   {
+//     float3 comp;
+//     if (axis == 0) comp = tri[triIdx[i]].centroid.x;
+//     if (axis == 1) comp = tri[triIdx[i]].centroid.y;
+//     if (axis == 2) comp = tri[triIdx[i]].centroid.z;
+//     if (comp < splitPos)
+//       i++;
+//     else
+//       auto temp = triIdx[i];
+//       triIdx[i] = triIdx[j];
+//       triIdx[j--] = temp;
+//   }
+//   // abort split if one of the sides is empty
+//   int leftCount = i - node.firstTriIdx;
+//   if (leftCount == 0 || leftCount == node.triCount) return;
+//   // create child nodes
+//   int leftChildIdx = nodesUsed++;
+//   int rightChildIdx = nodesUsed++;
+//   bvhNode[leftChildIdx].firstTriIdx = node.firstTriIdx;
+//   bvhNode[leftChildIdx].triCount = leftCount;
+//   bvhNode[rightChildIdx].firstTriIdx = i;
+//   bvhNode[rightChildIdx].triCount = node.triCount - leftCount;
+//   node.leftNode = leftChildIdx;
+//   node.triCount = 0;
+//   UpdateNodeBounds(bvhNode, tri, triIdx, N, leftChildIdx, nodesUsed);
+//   UpdateNodeBounds(bvhNode, tri, triIdx, N, rightChildIdx, nodesUsed);
+//   // recurse
+//   Subdivide(bvhNode, tri, triIdx, N, leftChildIdx, nodesUsed);
+//   Subdivide(bvhNode, tri, triIdx, N, rightChildIdx, nodesUsed);
+// }
 
-static void BuildBVH(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint rootNodeIdx, uint nodesUsed){
-  for (int i = 0; i < N; i++) tri[i].centroid = 
-            (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
-  // assign all triangles to root node
-  BVHNode& root = bvhNode[rootNodeIdx];
-  root.leftChild = root.rightChild = 0;
-  root.firstPrim = 0, root.primCount = N;
-  UpdateNodeBounds(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
-  // subdivide recursively
-  Subdivide(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
-}
+// static void BuildBVH(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint rootNodeIdx, uint nodesUsed){
+//   for (int i = 0; i < N; i++) tri[i].centroid = 
+//             (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
+//   // assign all triangles to root node
+//   BVHNode& root = bvhNode[rootNodeIdx];
+//   root.leftChild = root.rightChild = 0;
+//   root.firstPrim = 0, root.primCount = N;
+//   UpdateNodeBounds(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
+//   // subdivide recursively
+//   Subdivide(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
+// }
 
 const char* kernel_file = "kernel.vxbin";
 const char* output_file = "output.png";
@@ -217,12 +223,12 @@ int main(int argc, char *argv[]) {
 
   int bvh_size = sizeof(BVHNode) * (2 * NUM_TRIANGLES - 1);
   int tri_size = sizeof(Tri) * NUM_TRIANGLES;
-  int triIdx_size = sizeof(uint) * NUM_TRIANGLES;
+  int triIdx_size = sizeof(uint32_t) * NUM_TRIANGLES;
 
   generate_triangles(tri, NUM_TRIANGLES);
   for (int i = 0; i < NUM_TRIANGLES; i++) triIdx[i] = i;
-  uint rootNodeIdx = 0, nodesUsed = 1;
-  BuildBVH(bvhNode, tri, NUM_TRIANGLES, rootNodeIdx, nodesUsed);
+  // uint rootNodeIdx = 0, nodesUsed = 1;
+  // BuildBVH(bvhNode, tri, NUM_TRIANGLES, rootNodeIdx, nodesUsed);
 
   // allocate device memory
   std::cout << "allocate device memory" << std::endl;
@@ -250,17 +256,17 @@ int main(int argc, char *argv[]) {
     RT_CHECK(vx_copy_to_dev(BVH_buffer, bvhNode, 0, bvh_size));
   }
 
- // upload tri buffer
-  {
-    std::cout << "upload tri buffer" << std::endl;
-    RT_CHECK(vx_copy_to_dev(tri_addr, tri, 0, buf_size));
-  }
+//  // upload tri buffer
+//   {
+//     std::cout << "upload tri buffer" << std::endl;
+//     RT_CHECK(vx_copy_to_dev(tri_addr, tri, 0, buf_size));
+//   }
 
-  // upload triIdx buffer
-  {
-    std::cout << "upload triIdx buffer" << std::endl;
-    RT_CHECK(vx_copy_to_dev(triIdx_addr, triIdx, 0, buf_size));
-  }
+//   // upload triIdx buffer
+//   {
+//     std::cout << "upload triIdx buffer" << std::endl;
+//     RT_CHECK(vx_copy_to_dev(triIdx_addr, triIdx, 0, buf_size));
+//   }
 
   // upload program
   std::cout << "upload program" << std::endl;
@@ -297,7 +303,7 @@ int main(int argc, char *argv[]) {
     RT_CHECK(vx_copy_from_dev(dst_pixels.data(), color_buffer, 0, cbuf_size));
     //DumpImage(dst_pixels, dst_width, dst_height, 4);
     auto bits = dst_pixels.data() + (dst_height-1) * cbuf_pitch;
-    RT_CHECK(SaveImage(output_file, FORMAT_A8R8G8B8, bits, dst_width, dst_height, -cbuf_pitch));
+    RT_CHECK(SaveImage(output_file, cocogfx::FORMAT_A8R8G8B8, bits, dst_width, dst_height, -cbuf_pitch));
   }
 
   // verify result

@@ -1,7 +1,7 @@
 ROOT_DIR := $(realpath ../../..)
 include $(ROOT_DIR)/config.mk
 
-PROJECT := raster
+PROJECT := raytrace
 
 SRC_DIR := $(VORTEX_HOME)/tests/regression/$(PROJECT)
 
@@ -15,6 +15,6 @@ CXXFLAGS += -I$(VORTEX_HOME)/sim/common -I$(THIRD_PARTY_DIR) -DASSETS_PATHS='"$(
 
 LDFLAGS += $(THIRD_PARTY_DIR)/cocogfx/libcocogfx.a -lpng -lz -lboost_serialization
 
-OPTS ?=
+OPTS ?=-n100
 
 include ../common.mk

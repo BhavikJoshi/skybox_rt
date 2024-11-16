@@ -38,7 +38,7 @@ struct Ray {
 
 struct BVHNode {
     float3 aabbMin, aabbMax;
-    uint leftNode, firstTriIdx, triCount;
+    int leftNode, firstTriIdx, triCount;
     bool isLeaf() { return triCount > 0; }
 };
 

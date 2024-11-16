@@ -34,24 +34,36 @@ static void generate_triangles(Tri[] tri, int N) {
     }
 }
 
-static void UpdateNodeBounds(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint nodeIdx)  {
+static void UpdateNodeBounds(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint nodeIdx, uint &nodesUsed)  {
     BVHNode& node = bvhNode[nodeIdx];
-    node.aabbMin = float3( 1e30f , 1e30f , 1e30f );
-    node.aabbMax = float3( -1e30f, -1e30f, -1e30f );
+    node.aabbMin = float3{ 1e30f , 1e30f , 1e30f };
+    node.aabbMax = float3{ -1e30f, -1e30f, -1e30f };
     for (uint first = node.firstTriIdx, i = 0; i < node.triCount; i++)
     {
         uint leafTriIdx = triIdx[first + i];
         Tri& leafTri = tri[leafTriIdx];
-        node.aabbMin = fminf( node.aabbMin, leafTri.vertex0 ),
-        node.aabbMin = fminf( node.aabbMin, leafTri.vertex1 ),
-        node.aabbMin = fminf( node.aabbMin, leafTri.vertex2 ),
-        node.aabbMax = fmaxf( node.aabbMax, leafTri.vertex0 ),
-        node.aabbMax = fmaxf( node.aabbMax, leafTri.vertex1 ),
-        node.aabbMax = fmaxf( node.aabbMax, leafTri.vertex2 );
+        mode.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex0.x );
+        node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex1.x );
+        node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex2.x );
+        node.aabbMin.y = fminf( node.aabbMin.y, leafTri.vertex0.y );
+        node.aabbMin.y = fminf( node.aabbMin.y, leafTri.vertex1.y );
+        node.aabbMin.y = fminf( node.aabbMin.y, leafTri.vertex2.y );
+        node.aabbMin.z = fminf( node.aabbMin.z, leafTri.vertex2.z );
+        node.aabbMin.z = fminf( node.aabbMin.z, leafTri.vertex0.z );
+        node.aabbMin.z = fminf( node.aabbMin.z, leafTri.vertex1.z );
+        node.aabbMax.x = fmaxf( node.aabbMax.x, leafTri.vertex0.x );
+        node.aabbMax.x = fmaxf( node.aabbMax.x, leafTri.vertex1.x );
+        node.aabbMax.x = fmaxf( node.aabbMax.x, leafTri.vertex2.x );
+        node.aabbMax.y = fmaxf( node.aabbMax.y, leafTri.vertex0.y );
+        node.aabbMax.y = fmaxf( node.aabbMax.y, leafTri.vertex1.y );
+        node.aabbMax.y = fmaxf( node.aabbMax.y, leafTri.vertex2.y );
+        node.aabbMax.z = fmaxf( node.aabbMax.z, leafTri.vertex0.z );
+        node.aabbMax.z = fmaxf( node.aabbMax.z, leafTri.vertex1.z );
+        node.aabbMax.z = fmaxf( node.aabbMax.z, leafTri.vertex2.z );
     }
 }
 
-static void Subdivide(BVHNode[] bvhNode, Tri[] tri, uint[] triId, intN, uint nodeIdx )
+static void Subdivide(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint nodeIdx, uint &nodesUsed )
 {
   // terminate recursion
   BVHNode& node = bvhNode[nodeIdx];
@@ -59,15 +71,22 @@ static void Subdivide(BVHNode[] bvhNode, Tri[] tri, uint[] triId, intN, uint nod
   // determine split axis and position
   float3 extent = node.aabbMax - node.aabbMin;
   int axis = 0;
-  if (extent.y > extent.x) axis = 1;
-  if (extent.z > extent[axis]) axis = 2;
-  float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+  if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+  if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+  float splitPos;
+  if (axis == 0) splitPos = node.aabbMin.x + extent.x * 0.5f;
+  if (axis == 1) splitPos = node.aabbMin.y + extent.y * 0.5f;
+  if (axis == 2) splitPos = node.aabbMin.z + extent.z * 0.5f;
   // in-place partition
   int i = node.firstTriIdx;
   int j = i + node.triCount - 1;
   while (i <= j)
   {
-    if (tri[triIdx[i]].centroid[axis] < splitPos)
+    float3 comp;
+    if (axis == 0) comp = tri[triIdx[i]].centroid.x;
+    if (axis == 1) comp = tri[triIdx[i]].centroid.y;
+    if (axis == 2) comp = tri[triIdx[i]].centroid.z;
+    if (comp < splitPos)
       i++;
     else
       auto temp = triIdx[i];
@@ -86,26 +105,23 @@ static void Subdivide(BVHNode[] bvhNode, Tri[] tri, uint[] triId, intN, uint nod
   bvhNode[rightChildIdx].triCount = node.triCount - leftCount;
   node.leftNode = leftChildIdx;
   node.triCount = 0;
-  UpdateNodeBounds( leftChildIdx );
-  UpdateNodeBounds( rightChildIdx );
+  UpdateNodeBounds(bvhNode, tri, triIdx, N, leftChildIdx, nodesUsed);
+  UpdateNodeBounds(bvhNode, tri, triIdx, N, rightChildIdx, nodesUsed);
   // recurse
-  Subdivide( leftChildIdx );
-  Subdivide( rightChildIdx );
+  Subdivide(bvhNode, tri, triIdx, N, leftChildIdx, nodesUsed);
+  Subdivide(bvhNode, tri, triIdx, N, rightChildIdx, nodesUsed);
 }
 
-
-uint rootNodeIdx = 0, nodesUsed = 1;
-
-static void BuildBVH(BVHNode[] bvhNode, Tri[] tri, int N, uint rootNodeIdx, uint nodesUsed){
+static void BuildBVH(BVHNode[] bvhNode, Tri[] tri, uint[] triIdx, int N, uint rootNodeIdx, uint nodesUsed){
   for (int i = 0; i < N; i++) tri[i].centroid = 
             (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
   // assign all triangles to root node
   BVHNode& root = bvhNode[rootNodeIdx];
   root.leftChild = root.rightChild = 0;
   root.firstPrim = 0, root.primCount = N;
-  UpdateNodeBounds( rootNodeIdx );
+  UpdateNodeBounds(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
   // subdivide recursively
-  Subdivide( rootNodeIdx );
+  Subdivide(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
 }
 
 const char* kernel_file = "kernel.vxbin";
@@ -202,6 +218,11 @@ int main(int argc, char *argv[]) {
   int bvh_size = sizeof(BVHNode) * (2 * NUM_TRIANGLES - 1);
   int tri_size = sizeof(Tri) * NUM_TRIANGLES;
   int triIdx_size = sizeof(uint) * NUM_TRIANGLES;
+
+  generate_triangles(tri, NUM_TRIANGLES);
+  for (int i = 0; i < NUM_TRIANGLES; i++) triIdx[i] = i;
+  uint rootNodeIdx = 0, nodesUsed = 1;
+  BuildBVH(bvhNode, tri, NUM_TRIANGLES, rootNodeIdx, nodesUsed);
 
   // allocate device memory
   std::cout << "allocate device memory" << std::endl;

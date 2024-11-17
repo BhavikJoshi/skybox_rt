@@ -8,7 +8,8 @@
 #define NUM_TRIANGLES 64
 
 struct float3 {
-  float x, y, z;
+  union { struct { float x, y, z; }; float cell[3]; };
+	float& operator [] ( const int n ) { return cell[n]; }
   float3 operator-(const float3& a) const {
     return {x - a.x, y - a.y, z - a.z};
   }
@@ -24,11 +25,15 @@ struct float3 {
     z = a.z;
     return *this;
   }
+	float3( const float a, const float b, const float c ) : x( a ), y( b ), z( c ) {}
+	float3( const float a ) : x( a ), y( a ), z( a ) {}
+  float3() : x( 0 ), y( 0 ), z( 0 ) {}
 };
 
 struct Tri { 
   float3 vertex0, vertex1, vertex2; 
   float3 centroid; 
+  Tri() {}
 };
 
 struct Ray {
@@ -38,7 +43,7 @@ struct Ray {
 
 struct BVHNode {
     float3 aabbMin, aabbMax;
-    int leftNode, firstTriIdx, triCount;
+    int leftFirst, triCount;
     bool isLeaf() { return triCount > 0; }
 };
 

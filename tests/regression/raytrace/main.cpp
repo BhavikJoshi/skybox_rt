@@ -40,11 +40,11 @@ static void generate_triangles(Tri tri[], int N) {
     }
 }
 
-static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint nodeIdx, uint &nodesUsed)  {
+static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint triIdx[], uint nodeIdx)  {
     BVHNode& node = bvhNode[nodeIdx];
     node.aabbMin = float3(  1e30f );
     node.aabbMax = float3( -1e30f );
-    for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
+    for (int first = node.leftFirst, i = 0; i < node.triCount; i++)
     {
         uint leafTriIdx = triIdx[first + i];
         Tri& leafTri = tri[leafTriIdx];
@@ -106,24 +106,39 @@ static void Subdivide(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint n
 	node.leftFirst = leftChildIdx;
 	node.triCount = 0;
 	// recurse
-   UpdateNodeBounds(bvhNode, tri, triIdx, N, leftChildIdx, nodePtr);
-   UpdateNodeBounds(bvhNode, tri, triIdx, N, rightChildIdx, nodePtr);
-   // recurse
-   Subdivide(bvhNode, tri, triIdx, N, leftChildIdx, nodePtr);
-   Subdivide(bvhNode, tri, triIdx, N, rightChildIdx, nodePtr);
+  UpdateNodeBounds(bvhNode, tri, triIdx, leftChildIdx);
+  UpdateNodeBounds(bvhNode, tri, triIdx, rightChildIdx);
+  // recurse
+  Subdivide(bvhNode, tri, triIdx, N, leftChildIdx, nodePtr);
+  Subdivide(bvhNode, tri, triIdx, N, rightChildIdx, nodePtr);
  }
 
-static void BuildBVH(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint rootNodeIdx, uint nodesUsed){
+static void BuildBVH(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint nodesUsed){
+  // Calculate triangle centroids
   for (int i = 0; i < N; i++) tri[i].centroid = 
             (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
-  // assign all triangles to root node
+  // Populate index list
   for (int i = 0; i < NUM_TRIANGLES; i++) triIdx[i] = i;
-  BVHNode& root = bvhNode[rootNodeIdx];
+  // assign all triangles to root node
+  BVHNode& root = bvhNode[0];
+  // initialize root node
   root.leftFirst = 0;
   root.triCount = NUM_TRIANGLES;
-  UpdateNodeBounds(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
+  // update aabb of root node
+  UpdateNodeBounds(bvhNode, tri, triIdx, 0);
   // subdivide recursively
-  Subdivide(bvhNode, tri, triIdx, N, rootNodeIdx, nodesUsed );
+  Subdivide(bvhNode, tri, triIdx, N, 0, nodesUsed);
+}
+
+static void VerifyBVHStructure(BVHNode bvhNode[], int N, int index, int& numLeaves) {
+  BVHNode& node = bvhNode[index];
+  if (node.isLeaf()) {
+    numLeaves += node.triCount;
+  }
+  else {
+    VerifyBVHStructure(bvhNode, N, node.leftFirst, numLeaves);
+    VerifyBVHStructure(bvhNode, N, node.leftFirst + 1, numLeaves);
+  }
 }
 
 const char* kernel_file = "kernel.vxbin";
@@ -151,7 +166,7 @@ kernel_arg_t kernel_arg = {};
 
 Tri tri[NUM_TRIANGLES];
 uint triIdx[NUM_TRIANGLES];
-BVHNode bvhNode[NUM_TRIANGLES * 2 - 1];
+BVHNode bvhNode[NUM_TRIANGLES * 2];
 
 static void show_usage() {
    std::cout << "Vortex Ray Tracing Test." << std::endl;
@@ -217,12 +232,25 @@ int main(int argc, char *argv[]) {
   cbuf_pitch  = dst_width * cbuf_stride;
   cbuf_size   = dst_height * cbuf_pitch;
 
-  int bvh_size = sizeof(BVHNode) * (2 * NUM_TRIANGLES - 1);
+  int bvh_size = sizeof(BVHNode) * (2 * NUM_TRIANGLES);
   int tri_size = sizeof(Tri) * NUM_TRIANGLES;
   int triIdx_size = sizeof(uint32_t) * NUM_TRIANGLES;
 
   generate_triangles(tri, NUM_TRIANGLES);
-  BuildBVH(bvhNode, tri, triIdx, NUM_TRIANGLES, 0, 1);
+  BuildBVH(bvhNode, tri, triIdx, NUM_TRIANGLES, 2);
+
+  // Verify BVH is correctly built
+  int numLeaves = 0;
+  VerifyBVHStructure(bvhNode, NUM_TRIANGLES, 0, numLeaves);
+  if (numLeaves != NUM_TRIANGLES) {
+    std::cout << "BVH is not correctly built!" << std::endl;
+    cleanup();
+    exit(-1);
+  }
+  else {
+    std::cout << "BVH Structure Correctly Built with N=" << numLeaves << std::endl;  
+  }
+
 
   // allocate device memory
   std::cout << "allocate device memory" << std::endl;
@@ -250,17 +278,16 @@ int main(int argc, char *argv[]) {
     RT_CHECK(vx_copy_to_dev(BVH_buffer, bvhNode, 0, bvh_size));
   }
 
-//  // upload tri buffer
-//   {
-//     std::cout << "upload tri buffer" << std::endl;
-//     RT_CHECK(vx_copy_to_dev(tri_addr, tri, 0, buf_size));
-//   }
-
-//   // upload triIdx buffer
-//   {
-//     std::cout << "upload triIdx buffer" << std::endl;
-//     RT_CHECK(vx_copy_to_dev(triIdx_addr, triIdx, 0, buf_size));
-//   }
+  // upload tri buffer
+  {
+    std::cout << "upload tri buffer" << std::endl;
+    RT_CHECK(vx_copy_to_dev(tri_buffer, tri, 0, tri_size));
+  }
+  // upload triIdx buffer
+  {
+    std::cout << "upload triIdx buffer" << std::endl;
+    RT_CHECK(vx_copy_to_dev(triIdx_buffer, triIdx, 0, triIdx_size));
+  }
 
   // upload program
   std::cout << "upload program" << std::endl;

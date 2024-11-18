@@ -13,6 +13,7 @@
 #include <algorithm>
 #include "common.h"
 #include <cocogfx/include/imageutil.hpp>
+#include <rt_types.h>
 
 #define FLOAT_ULP 6
 
@@ -28,6 +29,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
+using namespace ray_tracing;
+
 static void generate_triangles(Tri tri[], int N) {
     for (int i = 0; i < N; i++)
     {
@@ -40,14 +43,13 @@ static void generate_triangles(Tri tri[], int N) {
     }
 }
 
-static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint triIdx[], uint nodeIdx)  {
+static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint nodeIdx)  {
     BVHNode& node = bvhNode[nodeIdx];
     node.aabbMin = float3(  1e30f );
     node.aabbMax = float3( -1e30f );
     for (int first = node.leftFirst, i = 0; i < node.triCount; i++)
     {
-        uint leafTriIdx = triIdx[first + i];
-        Tri& leafTri = tri[leafTriIdx];
+        Tri& leafTri = tri[first + i];
         node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex0.x );
         node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex1.x );
         node.aabbMin.x = fminf( node.aabbMin.x, leafTri.vertex2.x );
@@ -69,7 +71,7 @@ static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint triIdx[], uint n
     }
 }
 
-static void Subdivide(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint nodeIdx, uint &nodePtr)
+static void Subdivide(BVHNode bvhNode[], Tri tri[], int N, uint nodeIdx, uint &nodePtr)
 {
   // terminate recursion
   BVHNode& node = bvhNode[nodeIdx];
@@ -85,12 +87,12 @@ static void Subdivide(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint n
   int j = i + node.triCount - 1;
   while (i <= j)
   {
-      if (tri[triIdx[i]].centroid[axis] < splitPos)
+      if (tri[i].centroid[axis] < splitPos)
           i++;
       else {
-        auto temp = triIdx[i];
-        triIdx[i] = triIdx[j];
-        triIdx[j--] = temp;
+        Tri temp = tri[i];
+        tri[i] = tri[j];
+        tri[j--] = temp;
       }
   }
   // abort split if one of the sides is empty
@@ -106,28 +108,26 @@ static void Subdivide(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint n
 	node.leftFirst = leftChildIdx;
 	node.triCount = 0;
 	// recurse
-  UpdateNodeBounds(bvhNode, tri, triIdx, leftChildIdx);
-  UpdateNodeBounds(bvhNode, tri, triIdx, rightChildIdx);
+  UpdateNodeBounds(bvhNode, tri, leftChildIdx);
+  UpdateNodeBounds(bvhNode, tri, rightChildIdx);
   // recurse
-  Subdivide(bvhNode, tri, triIdx, N, leftChildIdx, nodePtr);
-  Subdivide(bvhNode, tri, triIdx, N, rightChildIdx, nodePtr);
+  Subdivide(bvhNode, tri, N, leftChildIdx, nodePtr);
+  Subdivide(bvhNode, tri, N, rightChildIdx, nodePtr);
  }
 
-static void BuildBVH(BVHNode bvhNode[], Tri tri[], uint triIdx[], int N, uint nodesUsed){
+static void BuildBVH(BVHNode bvhNode[], Tri tri[], int N, uint nodesUsed){
   // Calculate triangle centroids
   for (int i = 0; i < N; i++) tri[i].centroid = 
             (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
-  // Populate index list
-  for (int i = 0; i < NUM_TRIANGLES; i++) triIdx[i] = i;
   // assign all triangles to root node
   BVHNode& root = bvhNode[0];
   // initialize root node
   root.leftFirst = 0;
   root.triCount = NUM_TRIANGLES;
   // update aabb of root node
-  UpdateNodeBounds(bvhNode, tri, triIdx, 0);
+  UpdateNodeBounds(bvhNode, tri, 0);
   // subdivide recursively
-  Subdivide(bvhNode, tri, triIdx, N, 0, nodesUsed);
+  Subdivide(bvhNode, tri, N, 0, nodesUsed);
 }
 
 static void VerifyBVHStructure(BVHNode bvhNode[], int N, int index, int& numLeaves) {
@@ -157,7 +157,6 @@ uint32_t cbuf_size;
 vx_device_h device = nullptr;
 vx_buffer_h BVH_buffer = nullptr;
 vx_buffer_h tri_buffer = nullptr;
-vx_buffer_h triIdx_buffer = nullptr;
 vx_buffer_h color_buffer = nullptr;
 vx_buffer_h krnl_buffer = nullptr;
 vx_buffer_h args_buffer = nullptr;
@@ -165,7 +164,6 @@ vx_buffer_h args_buffer = nullptr;
 kernel_arg_t kernel_arg = {};
 
 Tri tri[NUM_TRIANGLES];
-uint triIdx[NUM_TRIANGLES];
 BVHNode bvhNode[NUM_TRIANGLES * 2];
 
 static void show_usage() {
@@ -204,7 +202,6 @@ void cleanup() {
   if (device) {
     vx_mem_free(BVH_buffer);
     vx_mem_free(tri_buffer);
-    vx_mem_free(triIdx_buffer);
     vx_mem_free(color_buffer);
     vx_mem_free(krnl_buffer);
     vx_mem_free(args_buffer);
@@ -234,10 +231,9 @@ int main(int argc, char *argv[]) {
 
   int bvh_size = sizeof(BVHNode) * (2 * NUM_TRIANGLES);
   int tri_size = sizeof(Tri) * NUM_TRIANGLES;
-  int triIdx_size = sizeof(uint32_t) * NUM_TRIANGLES;
 
   generate_triangles(tri, NUM_TRIANGLES);
-  BuildBVH(bvhNode, tri, triIdx, NUM_TRIANGLES, 2);
+  BuildBVH(bvhNode, tri, NUM_TRIANGLES, 2);
 
   // Verify BVH is correctly built
   int numLeaves = 0;
@@ -260,16 +256,12 @@ int main(int argc, char *argv[]) {
   // tri buffer
   RT_CHECK(vx_mem_alloc(device, tri_size, VX_MEM_READ, &tri_buffer));
   RT_CHECK(vx_mem_address(tri_buffer, &kernel_arg.tri_addr));
-  // triIdx buffer
-  RT_CHECK(vx_mem_alloc(device, triIdx_size, VX_MEM_READ, &triIdx_buffer));
-  RT_CHECK(vx_mem_address(triIdx_buffer, &kernel_arg.triIdx_addr));
   // color buffer
   RT_CHECK(vx_mem_alloc(device, cbuf_size, VX_MEM_WRITE, &color_buffer));
   RT_CHECK(vx_mem_address(color_buffer, &kernel_arg.cbuf_addr));
 
   std::cout << "bvh_addr=0x"    << std::hex << BVH_buffer    << std::endl;
   std::cout << "tri_addr=0x"    << std::hex << tri_buffer    << std::endl;
-  std::cout << "triIdx_addr=0x" << std::hex << triIdx_buffer << std::endl;
   std::cout << "cbuf_addr=0x"   << std::hex << color_buffer  << std::endl;
 
   // upload bvh buffer
@@ -282,11 +274,6 @@ int main(int argc, char *argv[]) {
   {
     std::cout << "upload tri buffer" << std::endl;
     RT_CHECK(vx_copy_to_dev(tri_buffer, tri, 0, tri_size));
-  }
-  // upload triIdx buffer
-  {
-    std::cout << "upload triIdx buffer" << std::endl;
-    RT_CHECK(vx_copy_to_dev(triIdx_buffer, triIdx, 0, triIdx_size));
   }
 
   // upload program

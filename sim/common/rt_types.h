@@ -45,6 +45,12 @@ struct BVHNode {
     bool isLeaf() { return triCount > 0; }
 };
 
+float3 cross( const float3& a, const float3& b );
+float3 normalize(const float3& v1);
+inline uint32_t RGB32FtoRGB8( float3 c );
+inline float dot( const float3& a, const float3& b ) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+
 } // namespace ray_tracing
 
 #endif // _RT_TYPES_H_

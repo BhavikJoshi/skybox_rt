@@ -299,6 +299,18 @@
 `define VX_CSR_TEX_END                  (`VX_CSR_TEX_BEGIN+0)
 `define VX_CSR_TEX_COUNT                (`VX_CSR_TEX_END-`VX_CSR_TEX_BEGIN)
 
+// Ray tracing unit CSRs
+`define VX_CSR_RT_BEGIN                 `VX_CSR_TEX_END
+`define VX_CSR_RT_TRI_ADDR              (`VX_CSR_RT_BEGIN+0)
+`define VX_CSR_RT_BVH_ADDR              (`VX_CSR_RT_BEGIN+1)
+`define VX_CSR_RT_TRI_IDX_ADDR          (`VX_CSR_RT_BEGIN+2)
+`define VX_CSR_RT_HIT_DIST              (`VX_CSR_RT_BEGIN+3)
+`define VX_CSR_RT_HIT_U                 (`VX_CSR_RT_BEGIN+4)
+`define VX_CSR_RT_HIT_V                 (`VX_CSR_RT_BEGIN+5)
+`define VX_CSR_RT_HIT_IDX               (`VX_CSR_RT_BEGIN+6)
+`define VX_CSR_RT_END                   (`VX_CSR_RT_BEGIN+7)
+`define VX_CSR_RT_COUNT                 (`VX_CSR_RT_END)    
+
 // Texture Units //////////////////////////////////////////////////////////////
 
 `define VX_TEX_STAGE_COUNT              2

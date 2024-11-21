@@ -418,6 +418,7 @@ static const char* op_string(const Instr &instr) {
     case 1: {
       switch (func2) {
       case 0: return "OM";
+      case 1: return "TLAS_INTERSECT";
       default:
         std::abort();
       }
@@ -680,6 +681,9 @@ std::shared_ptr<Instr> Emulator::decode(uint32_t code) const {
           instr->addSrcReg(rs1, RegType::Integer);
           instr->addSrcReg(rs2, RegType::Integer);
           instr->addSrcReg(rs3, RegType::Integer);
+        } break;
+        case 1: { // TLAS INTERSECT
+          instr->addSrcReg(rs1, RegType::Integer); // ray
         } break;
         default:
           std::abort();

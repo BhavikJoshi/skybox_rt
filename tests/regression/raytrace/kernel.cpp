@@ -53,5 +53,5 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 
 int main() {
 	auto __UNIFORM__ arg = (kernel_arg_t*)csr_read(VX_CSR_MSCRATCH);
-	return vx_spawn_threads(2, &arg->dst_width, nullptr, (vx_kernel_func_cb)kernel_body, arg);
+	return vx_spawn_threads(2, &arg->grid_dim, nullptr, (vx_kernel_func_cb)kernel_body, arg);
 }

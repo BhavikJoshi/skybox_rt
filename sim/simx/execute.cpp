@@ -26,6 +26,7 @@
 #include "instr.h"
 #include "core.h"
 #include <cocogfx/include/fixed.hpp>
+#include "ray_tracer.h"
 
 using namespace vortex;
 
@@ -1487,6 +1488,27 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
           auto y = (pos_face >> 16) & 0x7fff;
           DT(2, "om-write: cid=" << std::dec << core_->id() << ", wid=" << wid << ", tid=" << t << ", x=" << x << ", y=" << y << ", backface=" << f << ", color=0x" << std::hex << color << ", depth=0x" << depth);
           om_units_.at(trace_data->om_idx)->write(x, y, f, color, depth, trace_data);
+        }
+      } break;
+      case 1:  { // BVH TI
+        for (uint32_t t = thread_start; t < num_threads; ++t) {
+          Ray ray;
+          BVHNode bvhNode[NUM_TRIANGLES];
+          Tri tri[NUM_TRIANGLES];
+          uint32_t triIdx[NUM_TRIANGLES];
+
+          Word bvhNode_addr = this->get_csr(VX_CSR_RT_BVH_ADDR, t, wid);
+          Word tri_addr = this->get_csr(VX_CSR_RT_TRI_ADDR, t, wid);
+          Word triIdx_addr = this->get_csr(VX_CSR_RT_TRI_IDX_ADDR_addr, t, wid);
+          this->dcache_read(&ray, rsdata[t][0].i, sizeof(Ray));
+          this->dcache_read(&bvhNode, bvhNode_addr, sizeof(BVHNode)*(2*NUM_TRIANGLES));
+          this->dcache_read(&tri, tri_addr, sizeof(Tri)*NUM_TRIANGLES);
+          this->dcache_read(&triIdx, triIdx_addr, sizeof(uint32_t)*NUM_TRIANGLES);
+
+          uint nodeIdx = 0; // bvhIntersect should start at root node
+          
+          auto result = RayTracerUnit::IntersectBVH(ray_addr, nodeIdx, bvhNode, tri, triIdx);
+          set_csr(VX_CSR_RT_HIT_DIST, result, t, wid);
         }
       } break;
       default:

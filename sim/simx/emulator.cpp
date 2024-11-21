@@ -550,6 +550,12 @@ Word Emulator::get_csr(uint32_t addr, uint32_t tid, uint32_t wid) {
       return warps_.at(wid).csrs.at(tid).at(addr);
     } else
   #endif
+  #ifdef EXT_RT_ENABLE
+    if (addr >= VX_CSR_RT_BEGIN
+     && addr < VX_CSR_RT_END) {
+      return warps_.at(wid).csrs.at(tid).at(addr);
+    } else
+  #endif
     {
       std::cout << "Error: invalid CSR read addr=0x"<< std::hex << addr << std::dec << std::endl;
       std::abort();

@@ -116,6 +116,11 @@ inline unsigned vx_rast() {
     return ret;
 }
 
+// TLAS Intersect
+inline void vx_bvh_ti(int ray) {
+    asm volatile (".insn r4 %0, 1, 1, x0, %1, x0, x0" :: "i"(RISCV_CUSTOM1), "r"(ray));
+}
+
 // Set thread mask
 inline void vx_tmc(int thread_mask) {
     __asm__ volatile (".insn r %0, 0, 0, x0, %1, x0" :: "i"(RISCV_CUSTOM0), "r"(thread_mask));

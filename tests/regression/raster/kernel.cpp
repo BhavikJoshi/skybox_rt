@@ -7,7 +7,6 @@
 #include <rt_types.h>
 
 using namespace graphics;
-using namespace ray_tracing;
 
 #define OUTPUT_i(i, mask, x, y, color)    \
 	if (mask & (1 << i)) {				  \

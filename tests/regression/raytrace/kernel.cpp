@@ -13,7 +13,25 @@ float3 output(0,0,0);
 float3 camPos(0,0,15);
 float3 p0( -1, 1, -15 ), p1( 1, 1, -15 ), p2( -1, -1, -15 );
 
+float3 normalize(const float3& v1) {
 
+    // Calculate the magnitude of the difference vector
+    float magnitude = std::sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
+
+    // Check if the magnitude is not zero to avoid division by zero
+    if (magnitude > 0.0f) {
+        // Normalize the difference vector
+        float3 normalized = {
+            v1.x / magnitude,
+            v1.y / magnitude,
+            v1.z / magnitude
+        };
+        return normalized;
+    } else {
+        // Return a zero vector if the magnitude is zero
+        return {0.0f, 0.0f, 0.0f};
+    }
+}
 
 void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 	const cocogfx::ColorARGB default_color = 0xff000000;
@@ -32,13 +50,13 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 	csr_write(VX_CSR_RT_BVH_ADDR,bvh_addr);
 	csr_write(VX_CSR_RT_TRI_ADDR,tri_addr);
 	csr_write(VX_CSR_RT_TRI_IDX_ADDR,tri_idx_addr);
-	TLASIntersect(&ray);
+	vx_bvh_ti((int)&ray);
 	ray.t = csr_read(VX_CSR_RT_HIT_DIST);
 
 	//for texture/barycentric coordinates of intersection
-	float u = vx_csr_read(VX_CSR_RT_U);
-	float v = vx_csr_read(VX_CSR_RT_V);
-	uint idx = vx_csr_read(VX_CSR_RT_HIT_IDX);
+	float u = csr_read(VX_CSR_RT_HIT_U);
+	float v = csr_read(VX_CSR_RT_HIT_V);
+	uint32_t idx = csr_read(VX_CSR_RT_HIT_IDX);
 
 
 	if (ray.t != 1e30f) {
@@ -53,5 +71,5 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 
 int main() {
 	auto __UNIFORM__ arg = (kernel_arg_t*)csr_read(VX_CSR_MSCRATCH);
-	return vx_spawn_threads(2, &arg->grid_dim, nullptr, (vx_kernel_func_cb)kernel_body, arg);
+	return vx_spawn_threads(2, arg->grid_dim, nullptr, (vx_kernel_func_cb)kernel_body, arg);
 }

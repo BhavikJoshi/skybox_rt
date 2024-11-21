@@ -36,6 +36,7 @@
 `define EXT_TEX_ENABLE
 `define EXT_RASTER_ENABLE
 `define EXT_OM_ENABLE
+`define EXT_RT_ENABLE
 `endif
 
 `ifndef EXT_M_DISABLE
@@ -932,6 +933,12 @@
     `define EXT_OM_ENABLED 1
 `else
     `define EXT_OM_ENABLED 0
+`endif
+
+`ifdef EXT_RT_ENABLE
+    `define EXT_RT_ENABLED 1
+`else
+    `define EXT_RT_ENABLED 0
 `endif
 
 `ifdef EXT_ZICOND_ENABLE

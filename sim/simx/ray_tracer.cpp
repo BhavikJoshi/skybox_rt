@@ -7,7 +7,7 @@
 using namespace vortex;
 using namespace ray_tracing;
 
-void RayTracerUnit::IntersectTri( Ray& ray, const Tri& tri, float& distance)
+void IntersectTri( Ray& ray, const Tri& tri, float& distance)
 {
     const float3 edge1 = tri.vertex1 - tri.vertex0;
     const float3 edge2 = tri.vertex2 - tri.vertex0;
@@ -25,18 +25,18 @@ void RayTracerUnit::IntersectTri( Ray& ray, const Tri& tri, float& distance)
     if (t > 0.0001f && t < distance) distance = t;
 }
 
-bool RayTracerUnit::IntersectAABB( const Ray& ray, const float3 bmin, const float3 bmax )
+bool IntersectAABB( const Ray& ray, const float3 bmin, const float3 bmax )
 {
     float tx1 = (bmin.x - ray.O.x) / ray.D.x, tx2 = (bmax.x - ray.O.x) / ray.D.x;
-    float tmin = min( tx1, tx2 ), tmax = max( tx1, tx2 );
+    float tmin = fmin( tx1, tx2 ), tmax = fmax( tx1, tx2 );
     float ty1 = (bmin.y - ray.O.y) / ray.D.y, ty2 = (bmax.y - ray.O.y) / ray.D.y;
-    tmin = max( tmin, min( ty1, ty2 ) ), tmax = min( tmax, max( ty1, ty2 ) );
+    tmin = fmax( tmin, fmin( ty1, ty2 ) ), tmax = fmin( tmax, fmax( ty1, ty2 ) );
     float tz1 = (bmin.z - ray.O.z) / ray.D.z, tz2 = (bmax.z - ray.O.z) / ray.D.z;
-    tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
+    tmin = fmax( tmin, min( tz1, tz2 ) ), tmax = fmin( tmax, fmax( tz1, tz2 ) );
     return tmax >= tmin && tmin < ray.t && tmax > 0;
 }
 
-float RayTracerUnit::IntersectBVH( Ray& ray, const uint nodeIdx, BVHNode bvhNode[], Tri tri[], uint32_t triIdx[])
+float IntersectBVH( Ray& ray, const uint nodeIdx, BVHNode bvhNode[], Tri tri[], uint32_t triIdx[])
 {
     BVHNode& node = bvhNode[nodeIdx];
     float distance = 1e30;

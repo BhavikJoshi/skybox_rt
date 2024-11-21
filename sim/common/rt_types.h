@@ -46,10 +46,16 @@ struct BVHNode {
 };
 
 float3 cross( const float3& a, const float3& b );
-float3 normalize(const float3& v1);
-inline uint32_t RGB32FtoRGB8( float3 c );
+
 inline float dot( const float3& a, const float3& b ) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
+inline uint32_t RGB32FtoRGB8( float3 c )
+{
+	int r = (int)(fmin( c.x, 1.f ) * 255);
+	int g = (int)(fmin( c.y, 1.f ) * 255);
+	int b = (int)(fmin( c.z, 1.f ) * 255);
+	return (r << 16) + (g << 8) + b;
+}
 
 } // namespace ray_tracing
 

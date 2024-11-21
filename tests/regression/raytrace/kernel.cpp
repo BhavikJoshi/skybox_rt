@@ -21,6 +21,7 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
     int row = blockIdx.y;
 	auto tri_addr = reinterpret_cast<Tri*>(arg->tri_addr);
 	auto bvh_addr = reinterpret_cast<BVHNode*>(arg->bvh_addr);
+	auto tri_idx_addr = reinterpret_cast<uint32_t*>(arg->triIdx_addr);
 	auto dst = reinterpret_cast<uint32_t*>(arg->cbuf_addr + col * arg->cbuf_stride + row * arg->cbuf_pitch );
 	float3 pixelPos = p0 + (p1 - p0) * (col / 100.0f) + (p2 - p0) * (row / 100.0f);
 

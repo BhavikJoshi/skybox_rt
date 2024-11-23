@@ -26,7 +26,7 @@ struct float3 {
     float3( const float a, const float b, const float c ) : x( a ), y( b ), z( c ) {}
     float3( const float a ) : x( a ), y( a ), z( a ) {}
     float3() : x( 0 ), y( 0 ), z( 0 ) {}
-    };
+};
 
 struct Tri { 
   float3 vertex0, vertex1, vertex2; 
@@ -41,7 +41,7 @@ struct Ray {
 
 struct BVHNode {
     float3 aabbMin, aabbMax;
-    int leftFirst, triCount;
+    uint leftFirst, triCount;
     bool isLeaf() { return triCount > 0; }
 };
 

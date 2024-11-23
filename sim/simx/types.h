@@ -212,7 +212,8 @@ enum class SfuType {
   TEX,
   RASTER,
   OM,
-  CMOV
+  CMOV,
+  RT
 };
 
 inline std::ostream &operator<<(std::ostream &os, const SfuType& type) {

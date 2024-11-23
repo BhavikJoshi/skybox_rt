@@ -1491,20 +1491,21 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
         }
       } break;
       case 1:  { // BVH TI
+        trace->fu_type  = FUType::SFU;
+        trace->sfu_type = SfuType::RT;
+        trace->src_regs[0] = {RegType::Integer, rsrc0};
+        ray_tracing::BVHNode bvhNode[NUM_TRIANGLES];
+        ray_tracing::Tri tri[NUM_TRIANGLES];
+        uint32_t triIdx[NUM_TRIANGLES];
         for (uint32_t t = thread_start; t < num_threads; ++t) {
           ray_tracing::Ray ray;
-          ray_tracing::BVHNode bvhNode[NUM_TRIANGLES];
-          ray_tracing::Tri tri[NUM_TRIANGLES];
-          uint32_t triIdx[NUM_TRIANGLES];
-
           Word bvhNode_addr = this->get_csr(VX_CSR_RT_BVH_ADDR, t, wid);
           Word tri_addr = this->get_csr(VX_CSR_RT_TRI_ADDR, t, wid);
           Word triIdx_addr = this->get_csr(VX_CSR_RT_TRI_IDX_ADDR, t, wid);
-          this->dcache_read(&ray, rsdata[t][0].i, sizeof(ray_tracing::Ray));
           this->dcache_read(bvhNode, bvhNode_addr, sizeof(ray_tracing::BVHNode)*(2*NUM_TRIANGLES));
           this->dcache_read(tri, tri_addr, sizeof(ray_tracing::Tri)*NUM_TRIANGLES);
           this->dcache_read(triIdx, triIdx_addr, sizeof(uint32_t)*NUM_TRIANGLES);
-
+          this->dcache_read(&ray, rsdata[t][0].i, sizeof(ray_tracing::Ray));
           uint nodeIdx = 0; // bvhIntersect should start at root node
           
           auto result = IntersectBVH(ray, nodeIdx, bvhNode, tri, triIdx);

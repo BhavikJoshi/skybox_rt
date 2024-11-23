@@ -45,7 +45,10 @@ struct BVHNode {
     bool isLeaf() { return triCount > 0; }
 };
 
-float3 cross( const float3& a, const float3& b );
+inline float3 cross( const float3& a, const float3& b ) {
+    float3 res(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+    return res;
+}
 
 inline float dot( const float3& a, const float3& b ) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 

@@ -41,7 +41,7 @@ struct Ray {
 
 struct BVHNode {
     float3 aabbMin, aabbMax;
-    uint leftFirst, triCount;
+    int leftFirst, triCount;
     bool isLeaf() { return triCount > 0; }
 };
 

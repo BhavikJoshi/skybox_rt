@@ -309,7 +309,7 @@
 `define VX_CSR_RT_HIT_V                 (`VX_CSR_RT_BEGIN+5)
 `define VX_CSR_RT_HIT_IDX               (`VX_CSR_RT_BEGIN+6)
 `define VX_CSR_RT_END                   (`VX_CSR_RT_BEGIN+7)
-`define VX_CSR_RT_COUNT                 (`VX_CSR_RT_END)    
+`define VX_CSR_RT_COUNT                 (`VX_CSR_RT_END-`VX_CSR_RT_BEGIN)
 
 // Texture Units //////////////////////////////////////////////////////////////
 

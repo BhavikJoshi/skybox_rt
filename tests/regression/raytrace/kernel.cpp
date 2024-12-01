@@ -10,7 +10,7 @@
 using namespace ray_tracing;
 
 float3 output(0,0,0);
-float3 camPos(0,0,15);
+float3 camPos(0,0,-18);
 float3 p0( -1, 1, -15 ), p1( 1, 1, -15 ), p2( -1, -1, -15 );
 
 float3 normalize(const float3& v1) {
@@ -34,14 +34,17 @@ float3 normalize(const float3& v1) {
 }
 
 void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
-	const cocogfx::ColorARGB default_color = 0xff000000;
+	const cocogfx::ColorARGB black = 0xff000000;
+	const cocogfx::ColorARGB white = 0xffffffff;
 	int col = blockIdx.x;
     int row = blockIdx.y;
 	auto tri_addr = reinterpret_cast<Tri*>(arg->tri_addr);
 	auto bvh_addr = reinterpret_cast<BVHNode*>(arg->bvh_addr);
 	auto tri_idx_addr = reinterpret_cast<uint32_t*>(arg->triIdx_addr);
 	auto dst = reinterpret_cast<uint32_t*>(arg->cbuf_addr + col * arg->cbuf_stride + row * arg->cbuf_pitch );
-	float3 pixelPos = p0 + (p1 - p0) * (col / 100.0f) + (p2 - p0) * (row / 100.0f);
+	float dst_width = arg->dst_width;
+	float dst_height = arg->dst_height;
+	float3 pixelPos = p0 + (p1 - p0) * (col / dst_height) + (p2 - p0) * (row / dst_width);
 
 	Ray ray;
 	ray.O = camPos;
@@ -54,19 +57,11 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 	ray.t = csr_read(VX_CSR_RT_HIT_DIST);
 
 	//for texture/barycentric coordinates of intersection
-	float u = csr_read(VX_CSR_RT_HIT_U);
-	float v = csr_read(VX_CSR_RT_HIT_V);
-	uint32_t idx = csr_read(VX_CSR_RT_HIT_IDX);
+	//float u = csr_read(VX_CSR_RT_HIT_U);
+	//float v = csr_read(VX_CSR_RT_HIT_V);
+	//uint32_t idx = csr_read(VX_CSR_RT_HIT_IDX);
 
-
-	if (ray.t != 1e30f) {
-		float d = 4.0f / ray.t;
-		output.x = d;
-		output.y = d;
-		output.z= d;
-	}
-
-	*dst = default_color.value | RGB32FtoRGB8(output);
+	*dst = ray.t == 1e30f ? black : white;
 }
 
 int main() {

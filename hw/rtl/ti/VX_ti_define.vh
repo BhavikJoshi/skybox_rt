@@ -24,17 +24,12 @@
 `define TI_ADDR_BITS        25
 `endif
 
+`define TRICOUNT_IDX_START  224
+`define TRICOUNT_IDX_END    256
+
 
 `define IS_LEAF(isLeaf, bvhNODE)    \
-    assign dst[0][0] = src[0][0];   \
-    assign dst[1][0] = src[1][0];   \
-    assign dst[2][0] = src[2][0];   \
-    assign dst[0][1] = src[0][1];   \
-    assign dst[1][1] = src[1][1];   \
-    assign dst[2][1] = src[2][1];   \
-    assign dst[0][2] = eval[0];     \
-    assign dst[1][2] = eval[1];     \
-    assign dst[2][2] = eval[2]
+    assign isLeaf = bvhNODE[`TRICOUNT_IDX_START: `TRICOUNT_IDX_END] != 0;
 
 
 

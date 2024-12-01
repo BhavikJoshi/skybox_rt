@@ -19,7 +19,11 @@ module VX_ti_stack import VX_gpu_pkg::*; #(
     parameter `STRING INSTANCE_ID = "",
     parameter INSTANCE_IDX    = 0,
     parameter NUM_INSTANCES   = 1,
-    parameter STACK_SIZE      = 32;
+    // TODO: hardcoded stack size of 3
+    // this can only handle a BVH of 1 billion nodes in the worst case
+    // https://www.embree.org/papers/2019-HPG-ShortStack.pdf
+    // changing our BVH algorithm can allow to use the short stack algorithm with only 5 entries for arbitrary BVH sizes
+    parameter STACK_SIZE      = 30;
     parameter ENTRY_BITS      = 32;
 ) (
 

@@ -40,8 +40,6 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
     localparam TRI_INDEX_BITS = 32;
     localparam ADDR_BITS = 32;
     localparam TRI_NODE_BITS  = 48 << 3;
-    localparam TRICOUNT_IDX_START = 224;
-    localparam TRICOUNT_IDX_END = 256;
 
     // TODO: grab these from CSRs or as input into the module?
     // if grabbing from CSR, need an extra state after IDLE for grabbing addresses from CSR
@@ -192,6 +190,48 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
         .mem_data     (mem_unit_data),
         .valid_out    (mem_unit_valid),
         .ready_out    (mem_unit_ready)
+    );
+
+
+    
+    reg isTriangleIntersect;
+    reg [3*32-1:0] aabbMin, aabbMax, triV0, triV1, triV2, rayOrigin, rayDir;
+    wire intersects;
+
+    always @ (posedge clk) begin
+        // Reset to 0 by default
+        if (state == POP_STACK) begin
+            isTriangleIntersect = 0;
+        end
+        // If we reach the FETCH_TRI_INDEX state, 
+        // we know we're going to intersect a triangle
+        // in the INTERSECT state, so latch a 1.
+        if (state == FETCH_TRI_INDEX) begin
+            isTriangleIntersect = 1;
+        end
+
+    end
+
+    // TODO: separate units for AABB and triangle intersection?
+    // or keep the same interface, with isTriangleIntersect as a control signal
+    VX_ti_intersect ti_intersect (
+        .clk            (clk),
+        .reset          (reset),
+        .ready          (intersectReady),
+        .isTriangle     (isTriangleIntersect)
+        .aabb_min       (aabbMin),
+        .aabb_max       (aabbMax),
+        .tri_v0         (triV0),
+        .tri_v1         (triV1),
+        .tri_v2         (triV2),
+        .ray_origin     (rayOrigin),
+        .ray_dir        (rayDir),
+        .valid          (intersectValid),
+        .intersects     (intersects),
+        .distance       (intersectDistance)
+        .hit_point_u    (intersectHitPointU),
+        .hit_point_v    (intersectHitPointV)
+        .hit_index      (intersectHitIndex)
     );
 
    

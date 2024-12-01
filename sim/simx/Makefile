@@ -20,7 +20,7 @@ LDFLAGS += -Wl,-rpath,$(THIRD_PARTY_DIR)/ramulator -L$(THIRD_PARTY_DIR)/ramulato
 
 SRCS =  $(COMMON_DIR)/util.cpp $(COMMON_DIR)/mem.cpp $(COMMON_DIR)/rvfloats.cpp $(COMMON_DIR)/dram_sim.cpp
 SRCS += $(SRC_DIR)/processor.cpp $(SRC_DIR)/cluster.cpp $(SRC_DIR)/socket.cpp $(SRC_DIR)/core.cpp $(SRC_DIR)/emulator.cpp $(SRC_DIR)/decode.cpp $(SRC_DIR)/execute.cpp $(SRC_DIR)/func_unit.cpp $(SRC_DIR)/cache_sim.cpp $(SRC_DIR)/mem_sim.cpp $(SRC_DIR)/local_mem.cpp $(SRC_DIR)/mem_coalescer.cpp $(SRC_DIR)/dcrs.cpp $(SRC_DIR)/types.cpp
-SRCS += $(COMMON_DIR)/graphics.cpp $(SRC_DIR)/raster_unit.cpp $(SRC_DIR)/tex_unit.cpp $(SRC_DIR)/om_unit.cpp $(SRC_DIR)/ray_tracer.cpp
+SRCS += $(COMMON_DIR)/graphics.cpp $(SRC_DIR)/raster_unit.cpp $(SRC_DIR)/tex_unit.cpp $(SRC_DIR)/om_unit.cpp $(SRC_DIR)/ray_tracer.cpp $(SRC_DIR)/rt_types.cpp
 
 # Debugging
 ifdef DEBUG

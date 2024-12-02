@@ -56,6 +56,7 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
     VX_om_perf_if.slave     perf_om_if,
 `endif
 `endif
+    VX_ti_bus_if.master     ti_bus_if,
 
     // Outputs
     VX_commit_if.master     commit_if [`ISSUE_WIDTH],
@@ -74,6 +75,7 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
     localparam RSP_ARB_IDX_RASTER = RSP_ARB_IDX_CSRS + 1;
     localparam RSP_ARB_IDX_OM = RSP_ARB_IDX_RASTER + `EXT_RASTER_ENABLED;
     localparam RSP_ARB_IDX_TEX = RSP_ARB_IDX_OM + `EXT_OM_ENABLED;
+    localparam RSP_ARB_IDX_TI = RSP_ARB_IDX_TI + 1;
     `UNUSED_PARAM (RSP_ARB_IDX_RASTER)
     `UNUSED_PARAM (RSP_ARB_IDX_OM)
     `UNUSED_PARAM (RSP_ARB_IDX_TEX)
@@ -108,6 +110,8 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
 `ifdef EXT_OM_ENABLE
     VX_sfu_csr_if om_csr_if();
 `endif
+
+    VX_sfu_csr_if ti_csr_if();
 
     // Warp control block
     VX_execute_if #(
@@ -185,6 +189,7 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
         .perf_om_if     (perf_om_if),
     `endif
     `endif
+        .ti_csr_if      (ti_csr_if),
 
     `ifdef EXT_F_ENABLE
         .fpu_csr_if     (fpu_csr_if),
@@ -295,6 +300,33 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
     assign om_commit_if.ready = rsp_arb_ready_in[RSP_ARB_IDX_OM];
 
 `endif
+    VX_execute_if #(
+        .NUM_LANES (NUM_LANES)
+    ) ti_execute_if();
+    VX_commit_if #(
+        .NUM_LANES (NUM_LANES)
+    ) ti_commit_if();
+
+    assign ti_execute_if.valid = per_block_execute_if[0].valid && (per_block_execute_if[0].data.op_type == `INST_SFU_TI);
+    assign ti_execute_if.data = per_block_execute_if[0].data;
+
+    `RESET_RELAY (ti_reset, reset);
+
+    VX_ti_agent #(
+        .CORE_ID   (CORE_ID),
+        .NUM_LANES (NUM_LANES)
+    ) ti_agent (
+        .clk        (clk),
+        .reset      (ti_reset),
+        .execute_if (ti_execute_if),
+        .ti_csr_if  (ti_csr_if),
+        .ti_bus_if  (ti_bus_if),
+        .commit_if  (ti_commit_if)
+    );
+
+    assign rsp_arb_valid_in[RSP_ARB_IDX_TI] = ti_commit_if.valid;
+    assign rsp_arb_data_in[RSP_ARB_IDX_TI] = ti_commit_if.data;
+    assign ti_commit_if.ready = rsp_arb_ready_in[RSP_ARB_IDX_TI];
 
     // can accept new request?
 
@@ -313,6 +345,7 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
     `ifdef EXT_OM_ENABLE
         `INST_SFU_OM: sfu_req_ready = om_execute_if.ready;
     `endif
+        `INST_SFU_TI: sfu_req_ready = ti_execute_if.ready;
         default: sfu_req_ready = wctl_execute_if.ready;
         endcase
     end

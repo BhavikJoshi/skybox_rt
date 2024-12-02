@@ -424,6 +424,7 @@ package VX_gpu_pkg;
         `ifdef EXT_RASTER_ENABLE
             `INST_SFU_RASTER: op_to_sfu_type = `SFU_RASTER;
         `endif
+            `INST_SFU_TI: op_to_sfu_type = `SFU_TI;
             default: op_to_sfu_type = `SFU_WCTL;
         endcase
     endfunction

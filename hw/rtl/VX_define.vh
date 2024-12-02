@@ -77,8 +77,9 @@
 `define SFU_TEX         (`SFU_WCTL + `EXT_TEX_ENABLED)
 `define SFU_OM          (`SFU_TEX + `EXT_OM_ENABLED)
 `define SFU_RASTER      (`SFU_OM + `EXT_RASTER_ENABLED)
+`define SFU_TI          (`SFU_RASTER + 1)
 
-`define NUM_SFU_UNITS   (2 + `EXT_TEX_ENABLED + `EXT_OM_ENABLED + `EXT_RASTER_ENABLED)
+`define NUM_SFU_UNITS   (3 + `EXT_TEX_ENABLED + `EXT_OM_ENABLED + `EXT_RASTER_ENABLED)
 `define SFU_BITS        `CLOG2(`NUM_SFU_UNITS)
 `define SFU_WIDTH       `UP(`SFU_BITS)
 
@@ -262,6 +263,7 @@
 `define INST_SFU_TEX         4'h9
 `define INST_SFU_OM          4'hA
 `define INST_SFU_RASTER      4'hB
+`define INST_SFU_TI          4'hC
 `define INST_SFU_BITS        4
 
 `define INST_SFU_CSR(f3)     (4'h6 + 4'(f3) - 4'h1)

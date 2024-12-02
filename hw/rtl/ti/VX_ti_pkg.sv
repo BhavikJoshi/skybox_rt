@@ -42,6 +42,7 @@ typedef struct packed {
 typedef struct packed {
     logic [2:0][3:0][31:0] bcoords;
     logic [31:0]           pos_mask;
+    // TODO: capture all CSRs passed as arguments in instruction
 } ti_csrs_t;
 
 endpackage

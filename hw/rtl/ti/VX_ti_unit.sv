@@ -14,6 +14,7 @@
 // limitations under the License.
 
 `include "VX_raster_define.vh"
+`include "float_dpi.vh" // TODO: use dpi_fadd to simplify fpu operations
 
 module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
     parameter `STRING INSTANCE_ID = "",

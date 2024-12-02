@@ -27,7 +27,7 @@ module VX_csr_unit import VX_gpu_pkg::*; #(
     VX_mem_perf_if.slave        mem_perf_if,
     VX_pipeline_perf_if.slave   pipeline_perf_if,
 `endif
-
+// TODO: need additional sfu_csr_if for ti unit (ti_csr_if)
 `ifdef EXT_TEX_ENABLE
     VX_sfu_csr_if.master        tex_csr_if,
 `ifdef PERF_ENABLE

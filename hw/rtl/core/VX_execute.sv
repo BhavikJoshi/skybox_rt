@@ -119,6 +119,7 @@ module VX_execute import VX_gpu_pkg::*; #(
     ) sfu_unit (
         .clk            (clk),
         .reset          (sfu_reset),
+        // TODO: need memory interface and route all the way to ti unit similar to LSU
     `ifdef PERF_ENABLE
         .mem_perf_if    (mem_perf_if),
         .pipeline_perf_if (pipeline_perf_if),

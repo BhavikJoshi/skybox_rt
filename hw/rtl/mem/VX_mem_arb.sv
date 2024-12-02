@@ -27,7 +27,7 @@ module VX_mem_arb #(
 ) (
     input wire              clk,
     input wire              reset,
-// TODO: clone this module and connect to VX_lsu_bus_if and turn off the warng
+
     VX_mem_bus_if.slave     bus_in_if [NUM_INPUTS],
     VX_mem_bus_if.master    bus_out_if [NUM_OUTPUTS]
 );       

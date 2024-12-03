@@ -28,6 +28,10 @@ module VX_csr_unit import VX_gpu_pkg::*; #(
     VX_pipeline_perf_if.slave   pipeline_perf_if,
 `endif
 
+`ifdef EXT_RT_ENABLE
+    VX_sfu_csr_if.master        ti_csr_if,
+`endif
+
 `ifdef EXT_TEX_ENABLE
     VX_sfu_csr_if.master        tex_csr_if,
 `ifdef PERF_ENABLE
@@ -92,6 +96,27 @@ module VX_csr_unit import VX_gpu_pkg::*; #(
     end
 
     wire csr_write_enable = (execute_if.data.op_type == `INST_SFU_CSRRW);
+
+`ifdef EXT_RT_ENABLE
+
+    wire ti_addr_enable = (csr_addr >= `VX_CSR_RT_BEGIN && csr_addr < `VX_CSR_RT_END);
+
+    assign ti_csr_if.read_enable = csr_req_valid && ~csr_write_enable && tex_addr_enable;
+    assign ti_csr_if.read_uuid   = execute_if.data.uuid;
+    assign ti_csr_if.read_pid    = execute_if.data.pid;
+    assign ti_csr_if.read_wid    = execute_if.data.wid;
+    assign ti_csr_if.read_tmask  = execute_if.data.tmask;
+    assign ti_csr_if.read_addr   = csr_addr;
+    `UNUSED_VAR (ti_csr_if.read_data)
+
+    assign ti_csr_if.write_enable = csr_req_valid && csr_write_enable && tex_addr_enable;
+    assign ti_csr_if.write_uuid   = execute_if.data.uuid;
+    assign ti_csr_if.write_pid    = execute_if.data.pid;
+    assign ti_csr_if.write_wid    = execute_if.data.wid;
+    assign ti_csr_if.write_tmask  = execute_if.data.tmask;
+    assign ti_csr_if.write_addr   = csr_addr;
+    assign ti_csr_if.write_data   = rs1_data;
+`endif
 
 `ifdef EXT_TEX_ENABLE
 

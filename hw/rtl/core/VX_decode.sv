@@ -560,6 +560,11 @@ module VX_decode import VX_gpu_pkg::*, VX_trace_pkg::*; #(
                                 `USED_IREG (rs3);
                             end
                         `endif
+                            2'h1: begin // TLAS Intersect
+                                ex_type = `EX_SFU;
+                                op_type = `INST_OP_BITS'(`INST_SFU_TI);
+                                `USED_IREG (rs1);
+                            end
                             default:;
                         endcase
                     end

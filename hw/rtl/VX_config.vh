@@ -342,6 +342,10 @@
 `define FPUQ_SIZE (2 * (`NUM_THREADS / `NUM_FPU_LANES))
 `endif
 
+
+//Ray Trace Latency
+`define LATENCY_TI 20
+
 // FNCP Latency
 `ifndef LATENCY_FNCP
 `define LATENCY_FNCP 2

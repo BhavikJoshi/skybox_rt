@@ -26,7 +26,7 @@
 #include "instr.h"
 #include "core.h"
 #include <cocogfx/include/fixed.hpp>
-#include "ray_tracer.h"
+#include "rt_types.h"
 
 using namespace vortex;
 
@@ -1490,26 +1490,49 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
           om_units_.at(trace_data->om_idx)->write(x, y, f, color, depth, trace_data);
         }
       } break;
-      case 1:  { // BVH TI
+      case 1:  { // RT T&I
         trace->fu_type  = FUType::SFU;
         trace->sfu_type = SfuType::RT;
         trace->src_regs[0] = {RegType::Integer, rsrc0};
-        ray_tracing::BVHNode bvhNode[NUM_TRIANGLES];
-        ray_tracing::Tri tri[NUM_TRIANGLES];
-        uint32_t triIdx[NUM_TRIANGLES];
+        // Read per-warp CSRs
+        Word bvhNode_addr = this->get_csr(VX_CSR_RT_BVH_ADDR, thread_start, wid);
+        Word triIdx_addr = this->get_csr(VX_CSR_RT_TRI_IDX_ADDR,  thread_start, wid);
+        Word tri_addr = this->get_csr(VX_CSR_RT_TRI_ADDR,  thread_start, wid);
         for (uint32_t t = thread_start; t < num_threads; ++t) {
+          if (!warp.tmask.test(t)) continue;
+          // Perform per-thread T&I instruction
           ray_tracing::Ray ray;
-          Word bvhNode_addr = this->get_csr(VX_CSR_RT_BVH_ADDR, t, wid);
-          Word tri_addr = this->get_csr(VX_CSR_RT_TRI_ADDR, t, wid);
-          Word triIdx_addr = this->get_csr(VX_CSR_RT_TRI_IDX_ADDR, t, wid);
-          this->dcache_read(bvhNode, bvhNode_addr, sizeof(ray_tracing::BVHNode)*(2*NUM_TRIANGLES));
-          this->dcache_read(tri, tri_addr, sizeof(ray_tracing::Tri)*NUM_TRIANGLES);
-          this->dcache_read(triIdx, triIdx_addr, sizeof(uint32_t)*NUM_TRIANGLES);
           this->dcache_read(&ray, rsdata[t][0].i, sizeof(ray_tracing::Ray));
-          uint nodeIdx = 0; // bvhIntersect should start at root node
-          
-          auto result = IntersectBVH(ray, nodeIdx, bvhNode, tri, triIdx);
-          set_csr(VX_CSR_RT_HIT_DIST, result, t, wid);
+          float distance = 1e30;
+          std::stack<uint32_t> bvhStack;
+          bvhStack.push(0);
+          while (!bvhStack.empty())
+          {
+            uint32_t nextIdx = bvhStack.top();
+            bvhStack.pop();
+            ray_tracing::BVHNode node;
+            this->dcache_read(&node, bvhNode_addr + nextIdx * sizeof(ray_tracing::BVHNode), sizeof(ray_tracing::BVHNode));
+            // Check if ray intersects with AABB
+            if (!IntersectAABB(ray, node.aabbMin, node.aabbMax)) continue;
+            // Intersect with triangles if leaf node
+            if (node.isLeaf()) {
+              for (uint32_t i = 0; i < node.triCount; i++) {
+                  uint32_t triIdx;
+                  ray_tracing::Tri tri;
+                  // Get triangle 
+                  this->dcache_read(&triIdx, triIdx_addr + (node.leftFirst + i) * sizeof(uint32_t), sizeof(uint32_t));
+                  this->dcache_read(&tri, tri_addr + triIdx * sizeof(ray_tracing::Tri), sizeof(ray_tracing::Tri));
+                  // Intersect and update min distance
+                  IntersectTri(ray, tri, distance);
+              }
+            }
+            // Push subnodes if not a leaf
+            else {
+              bvhStack.push(node.leftFirst);
+              bvhStack.push(node.leftFirst);
+            }
+          }
+          this->set_csr(VX_CSR_RT_HIT_DIST, distance, t, wid);
         }
       } break;
       default:

@@ -269,10 +269,10 @@ int main(int argc, char *argv[]) {
   RT_CHECK(vx_mem_alloc(device, cbuf_size, VX_MEM_WRITE, &color_buffer));
   RT_CHECK(vx_mem_address(color_buffer, &kernel_arg.cbuf_addr));
 
-  std::cout << "bvh_addr=0x"    << std::hex << BVH_buffer    << std::endl;
-  std::cout << "tri_addr=0x"    << std::hex << tri_buffer    << std::endl;
-  std::cout << "triIdx_addr=0x" << std::hex << triIdx_buffer << std::endl;
-  std::cout << "cbuf_addr=0x"   << std::hex << color_buffer  << std::endl;
+  std::cout << "bvh_addr = 0x"    << std::hex << kernel_arg.bvh_addr    << std::endl;
+  std::cout << "tri_addr = 0x"    << std::hex << kernel_arg.tri_addr    << std::endl;
+  std::cout << "triIdx_addr = 0x" << std::hex << kernel_arg.triIdx_addr << std::endl;
+  std::cout << "cbuf_addr = 0x"   << std::hex << kernel_arg.cbuf_addr  << std::endl;
 
   // upload bvh buffer
   {

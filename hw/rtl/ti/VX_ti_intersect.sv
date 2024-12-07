@@ -15,7 +15,7 @@
 
 `include "VX_ti_define.vh"
 
-module VX_ti_mem import VX_gpu_pkg::*; #(
+module VX_ti_intersect import VX_gpu_pkg::*; #(
     parameter `STRING INSTANCE_ID = "",
     parameter INSTANCE_IDX    = 0,
     parameter NUM_INSTANCES   = 1,
@@ -25,12 +25,26 @@ module VX_ti_mem import VX_gpu_pkg::*; #(
         input wire clk,
         input wire reset,
 
-        // Memory interface
-        VX_mem_bus_if.master    cache_bus_if [RCACHE_NUM_REQS],
+        input wire ready,
+        input wire isTriangle,
+        input wire [3*32-1:0] aabb_min,
+        input wire [3*32-1:0] aabb_max,
+        input wire [3*32-1:0] tri_v0,
+        input wire [3*32-1:0] tri_v1,
+        input wire [3*32-1:0] tri_v2,
+        input wire [3*32-1:0] ray_origin,
+        input wire [3*32-1:0] ray_dir,
+        
+        output wire valid,
+        output wire intersects,
+        output wire [32-1:0] distance,
+        output wire [32-1:0] hit_point_u,
+        output wire [32-1:0] hit_point_v,
+        output wire [32-1:0] hit_index
+)
+        // Instantiate FPU interface??
+        
 
-        // Outputs
-        VX_ti_bus_if.master     ti_bus_if
-);
 
 endmodule
 

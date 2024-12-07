@@ -27,7 +27,7 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
 
 
     // Memory interface
-    VX_mem_bus_if.master    cache_bus_if [RCACHE_NUM_REQS],
+    VX_mem_bus_if.master    cache_bus_if [TCACHE_NUM_REQS],
 
 
     // Outputs
@@ -53,6 +53,27 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     reg [AADR_BITS-1:0] triIdxBaseAddr;
     reg [ADDR_BITS-1:0] triBaseAddr;
 
+
+    ti_csrs_t reg_csrs;
+
+    // Handle CSR writes
+    always @(posedge clk) begin
+        if (reset) begin
+            reg_csrs <= '0;
+        end else if (ti_csr_if.write_enable) begin
+            case (ti_csr_if.write_addr)
+                `VX_CSR_RT_BVH_ADDR: reg_csrs.bvh <= ti_csr_if.write_data;
+                `VX_CSR_RT_TRI_ADDR: reg_csrs.tri = ti_csr_if.write_data;
+                `VX_CSR_RT_TRI_IDX_ADDR: reg_csrs.triIdx = ti_csr_if.write_data;
+                default:;
+            endcase
+        end
+    end
+
+    // Handle CSR reads
+    assign bvhBaseAddr = reg_csrs.bvh;
+    assign triIdxBaseAddr = reg_csrs.tri;
+    assign triBaseAddr = reg_csrs.triIdx;
 
     // T&I Unit States
     localparam IDLE = 0;
@@ -191,7 +212,7 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
         .full           ()
     );
 
-    VX_ti_mem raster_mem (
+    VX_ti_mem ti_mem (
         .clk          (clk),
         .reset        (mem_reset),
 

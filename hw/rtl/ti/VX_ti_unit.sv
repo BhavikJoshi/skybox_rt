@@ -13,10 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-`include "VX_raster_define.vh"
-`include "float_dpi.vh" // TODO: use dpi_fadd to simplify fpu operations
+`include "VX_ti_define.vh"
 
-module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
+module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     parameter `STRING INSTANCE_ID = "",
     parameter INSTANCE_IDX    = 0,
     parameter NUM_INSTANCES   = 1,
@@ -36,9 +35,15 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
 );
 
 
-    localparam BVH_NODE_BITS  = 32 << 3;
-    localparam BVH_INDEX_BITS = 32;
-    localparam TRI_INDEX_BITS = 32;
+    localparam BVH_NODE_BYTES  = 32;
+    localparam BVH_INDEX_BYTES = 4;
+    localparam TRI_INDEX_BYTES = 4;
+    localparam TRI_NODE_BYTES  = 48;
+    localparam BVH_NODE_BITS = BVH_NODE_BYTES << 3;
+    localparam BVH_INDEX_BITS = BVH_INDEX_BYTES << 3;
+    localparam TRI_INDEX_BITS = TRI_INDEX_BYTES << 3;
+    localparam TRI_NODE_BITS  = TRI_NODE_BYTES << 3;
+
     localparam ADDR_BITS = 32;
     localparam TRI_NODE_BITS  = 48 << 3;
 
@@ -54,14 +59,16 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
     localparam PUSH_STACK = 1;
     localparam POP_STACK = 2;
     localparam FETCH_BVH_NODE = 3;
-    localparam FETCH_TRI_INDEX = 4;
-    localparam FETCH_TRI_NODE = 5;
-    localparam INTERSECT = 6;
-    localparam MISS = 7;
-    localparam HIT = 6;
-    localparam STACK_EMPTY = 7;
+    localparam INTERSECT_BOUNDING_BOX = 4;
+    localparam HIT_BOUNDING_BOX = 5;
+    localparam FETCH_TRI_INDEX = 6;
+    localparam FETCH_TRI = 7;
+    localparam INTERSECT_TRIANGLE = 8;
+    localparam HIT_TRIANGLE = 9;
+    localparam MISS = 10;
+    localparam STACK_EMPTY = 11;
 
-    reg [2:0] state, nextState;
+    reg [3:0] state, nextState;
     wire stackEmpty;
     reg [BVH_INDEX_BITS-1:0] bvhIndexPush;
     reg push;
@@ -76,9 +83,11 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
     always @ (*) begin
         case (state)
             IDLE: begin
+                // If there's a valid request, push the initial BVH index onto the stack
                 if (ti_bus_if.valid) begin
                     nextState = PUSH_STACK;
                 end
+                // Spin in IDLE state until a valid request is received
                 else begin
                     nextState = IDLE;
                 end
@@ -87,18 +96,32 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
                 nextState = POP_STACK;
             end
             POP_STACK: begin
+                // Check if stack is empty
+                // Otherwise, fetch the next BVH node
                 nextState = stackEmpty ? STACK_EMPTY : FETCH_BVH_NODE;
             end
             FETCH_BVH_NODE: begin
                 // Once memory returns the BVH node, check if it's a leaf node
                 if (bvhBufferValid) begin
                     // If not a leaf node, intersect the AABB; otherwise, fetch the triangle index
-                    nextState = currNode[TRICOUNT_IDX_END-1:TRICOUNT_IDX_START] == 0 ? INTERSECT : FETCH_TRI_INDEX;
+                    nextState = INTERSECT_BOUNDING_BOX;
                 end
                 // Wait for memory to return the BVH node
                 else begin
                     nextState = FETCH_BVH_NODE;
                 end
+            end
+            INTERSECT_BOUNDING_BOX: begin
+                wire isLeafNode;
+                assign isLeafNode = currNode[TRICOUNT_IDX_END-1:TRICOUNT_IDX_START] != 0;
+                // If we hit the bounding box
+                //     If it is a leaf node, we need to intersect the triangles
+                //     otherwise, add the sub-nodes to the stack
+                // otherwise, we miss and go back to the stack
+                nextState = (hitBoundingBox == 1'b1) ? (isLeafNode == 1'b1 ? FETCH_TRI_INDEX : HIT_BOUNDING_BOX) : MISS;
+            end
+            HIT_BOUNDING_BOX: begin
+                nextState = PUSH_STACK;
             end
             FETCH_TRI_INDEX: begin
                 if (triIdxValid) begin
@@ -111,32 +134,21 @@ module VX_raster_unit import VX_gpu_pkg::*; import VX_raster_pkg::*; #(
             end
             FETCH_TRI_NODE: begin
                 if (triNodeValid) begin
-                    nextState = INTERSECT;
+                    nextState = INTERSECT_TRIANGLE;
                 end
                 // Wait for memory to return the triangle node
                 else begin
                     nextState = FETCH_TRI_NODE;
                 end
             end
-            INTERSECT: begin
-                if (intersectValid) begin
-                    if (intersects) begin
-                        nextState = HIT;
-                    end
-                    else begin
-                        nextState = MISS;
-                    end
-                end
-                // Wait for intersection unit to return the result
-                else begin
-                    nextState = INTERSECT;
-                end
+            INTERSECT_TRIANGLE: begin
+                nextState = (hitTriangle == 1'b1 ? HIT_TRIANGLE : MISS);
+            end
+            HIT_TRIANGLE: begin
+                nextState = POP_STACK;
             end
             MISS: begin
                 nextState = POP_STACK;
-            end
-            HIT: begin
-                nextState = isTriangleIntersect ? POP_STACK : PUSH_STACK;
             end
             STACK_EMPTY: begin
                 nextState = IDLE;

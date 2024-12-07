@@ -301,6 +301,9 @@ void SfuUnit::tick() {
 			auto trace_data = std::dynamic_pointer_cast<TexUnit::TraceData>(trace->data);
 			tex_units_.at(trace_data->tex_idx)->Input.push(trace, delay);
 		} break;
+		case SfuType::RT: {
+			output.push(trace, 200 + delay);
+		} break;
 		default:
 			std::abort();
 		}

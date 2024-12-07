@@ -27,10 +27,7 @@
 `define TRICOUNT_IDX_START  224
 `define TRICOUNT_IDX_END    256
 
-
-`define IS_LEAF(isLeaf, bvhNODE)    \
-    assign isLeaf = bvhNODE[`TRICOUNT_IDX_START: `TRICOUNT_IDX_END] != 0;
-
+`define TI_FLOAT_BITS       32
 
 
 `endif // VX_RASTER_DEFINE_VH

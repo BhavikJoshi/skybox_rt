@@ -195,27 +195,3 @@ module VX_ti_intersect_triangle import VX_ti_pkg::*; #(
 endmodule
 
 ///////////////////////////////////////////////////////////////////////////////
-void IntersectTri( Ray& ray, const Tri& tri, float& distance)
-{
-    const float3 edge1 = tri.vertex1 - tri.vertex0;
-    const float3 edge2 = tri.vertex2 - tri.vertex0;
-    const float3 h = cross( ray.D, edge2 );
-    const float a = dot( edge1, h );
-    if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
-    const float f = 1 / a;
-    const float3 s = ray.O - tri.vertex0;
-    const float u = f * dot( s, h );
-    if (u < 0 || u > 1) return;
-    const float3 q = cross( s, edge1 );
-    const float v = f * dot( ray.D, q );
-    if (v < 0 || u + v > 1) return;
-    const float t = f * dot( edge2, q );
-    if (t > 0.0001f && t < distance) distance = t;
-}
-
-inline float3 cross( const float3& a, const float3& b ) {
-    float3 res(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
-    return res;
-}
-
-inline float dot( const float3& a, const float3& b ) { return a.x * b.x + a.y * b.y + a.z * b.z; }

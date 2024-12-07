@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-`include "VX_raster_define.vh"
+`include "VX_ti_define.vh"
 
 module VX_ti_intersect import VX_gpu_pkg::*; #(
     parameter `STRING INSTANCE_ID = "",
@@ -41,7 +41,7 @@ module VX_ti_intersect import VX_gpu_pkg::*; #(
         output wire [32-1:0] hit_point_u,
         output wire [32-1:0] hit_point_v,
         output wire [32-1:0] hit_index
-
+)
         // Instantiate FPU interface??
         
 

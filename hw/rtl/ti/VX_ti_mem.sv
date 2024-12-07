@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-`include "VX_raster_define.vh"
+`include "VX_ti_define.vh"
 
 module VX_ti_mem import VX_gpu_pkg::*; #(
     parameter `STRING INSTANCE_ID = "",

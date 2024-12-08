@@ -27,13 +27,11 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
 
 
     // Memory interface
-    VX_mem_bus_if.master    cache_bus_if [TCACHE_NUM_REQS],
-
+    VX_lsu_mem_if.master    lsu_mem_if.req_data,
 
     // Outputs
     VX_ti_bus_if.master     ti_bus_if
 );
-
 
     localparam BVH_NODE_BYTES  = 32;
     localparam BVH_INDEX_BYTES = 4;
@@ -47,12 +45,9 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     localparam ADDR_BITS = 32;
     localparam TRI_NODE_BITS  = 48 << 3;
 
-    // TODO: grab these from CSRs or as input into the module?
-    // if grabbing from CSR, need an extra state after IDLE for grabbing addresses from CSR
-    reg [ADDR_BITS-1:0] bvhBaseAddr;
-    reg [AADR_BITS-1:0] triIdxBaseAddr;
-    reg [ADDR_BITS-1:0] triBaseAddr;
-
+    wire [ADDR_BITS-1:0] bvhBaseAddr;
+    wire [AADR_BITS-1:0] triIdxBaseAddr;
+    wire [ADDR_BITS-1:0] triBaseAddr;
 
     ti_csrs_t reg_csrs;
 
@@ -63,8 +58,8 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
         end else if (ti_csr_if.write_enable) begin
             case (ti_csr_if.write_addr)
                 `VX_CSR_RT_BVH_ADDR: reg_csrs.bvh <= ti_csr_if.write_data;
-                `VX_CSR_RT_TRI_ADDR: reg_csrs.tri = ti_csr_if.write_data;
-                `VX_CSR_RT_TRI_IDX_ADDR: reg_csrs.triIdx = ti_csr_if.write_data;
+                `VX_CSR_RT_TRI_ADDR: reg_csrs.tri <= ti_csr_if.write_data;
+                `VX_CSR_RT_TRI_IDX_ADDR: reg_csrs.triIdx <= ti_csr_if.write_data;
                 default:;
             endcase
         end
@@ -79,17 +74,26 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     localparam IDLE = 0;
     localparam PUSH_STACK = 1;
     localparam POP_STACK = 2;
-    localparam FETCH_BVH_NODE = 3;
-    localparam INTERSECT_BOUNDING_BOX = 4;
-    localparam HIT_BOUNDING_BOX = 5;
-    localparam FETCH_TRI_INDEX = 6;
-    localparam FETCH_TRI = 7;
-    localparam INTERSECT_TRIANGLE = 8;
-    localparam HIT_TRIANGLE = 9;
-    localparam MISS = 10;
-    localparam STACK_EMPTY = 11;
+    localparam SEND_BVH_NODE_REQ = 3;
+    localparam WAIT_BVH_NODE_RSP = 4;
+    localparam RECV_BVH_NODE_RSP= 5;
+    localparam INTERSECT_BOUNDING_BOX = 6;
+    localparam HIT_BOUNDING_BOX = 7;
+    localparam SEND_TRI_INDEX_REQ = 8;
+    localparam WAIT_TRI_INDEX_RSP = 9;
+    localparam RECV_TRI_INDEX_RSP = 10;
+    localparam SEND_TRI_NODE_L_REQ = 11;
+    localparam WAIT_TRI_NODE_L_RSP = 12;
+    localparam RECV_TRI_NODE_L_RSP = 13;
+    localparam SEND_TRI_NODE_H_REQ = 14;
+    localparam WAIT_TRI_NODE_L_RSP = 15;
+    localparam RECV_TRI_NODE_L_RSP = 16;
+    localparam INTERSECT_TRIANGLE = 17;
+    localparam HIT_TRIANGLE = 18;
+    localparam MISS = 19;
+    localparam STACK_EMPTY = 20;
 
-    reg [3:0] state, nextState;
+    reg [4:0] state, nextState;
     wire stackEmpty;
     reg [BVH_INDEX_BITS-1:0] bvhIndexPush;
     reg push;
@@ -99,8 +103,7 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     reg [TRI_INDEX_BITS-1:0] triIndexBuffer;
     reg [TRI_NODE_BITS-1:0] triBuffer;
 
-
-    // Next state logic
+    // State transition logic
     always @ (*) begin
         case (state)
             IDLE: begin
@@ -119,17 +122,25 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             POP_STACK: begin
                 // Check if stack is empty
                 // Otherwise, fetch the next BVH node
-                nextState = stackEmpty ? STACK_EMPTY : FETCH_BVH_NODE;
+                nextState = stackEmpty ? STACK_EMPTY : SEND_BVH_NODE_REQ;
             end
-            FETCH_BVH_NODE: begin
+            SEND_BVH_NODE_REQ: begin
                 // Once memory returns the BVH node, check if it's a leaf node
-                if (bvhBufferValid) begin
+                if (lsu_mem_if.req_data.req_ready) begin
                     // If not a leaf node, intersect the AABB; otherwise, fetch the triangle index
-                    nextState = INTERSECT_BOUNDING_BOX;
+                    nextState = WAIT_BVH_NODE_RSP;
                 end
                 // Wait for memory to return the BVH node
                 else begin
-                    nextState = FETCH_BVH_NODE;
+                    nextState = SEND_BVH_NODE_REQ
+                end
+            end
+            WAIT_BVH_NODE_RSP: begin
+                if (lsu_mem_if.req_data.rsp_valid) begin
+                    nextState = INTERSECT_BOUNDING_BOX;
+                end
+                else begin
+                    nextState = WAIT_BVH_NODE_RSP;
                 end
             end
             INTERSECT_BOUNDING_BOX: begin
@@ -139,27 +150,63 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 //     If it is a leaf node, we need to intersect the triangles
                 //     otherwise, add the sub-nodes to the stack
                 // otherwise, we miss and go back to the stack
-                nextState = (hitBoundingBox == 1'b1) ? (isLeafNode == 1'b1 ? FETCH_TRI_INDEX : HIT_BOUNDING_BOX) : MISS;
+                nextState = (hitBoundingBox == 1'b1) ? (isLeafNode == 1'b1 ? SEND_TRI_INDEX_REQ : HIT_BOUNDING_BOX) : MISS;
             end
             HIT_BOUNDING_BOX: begin
                 nextState = PUSH_STACK;
             end
-            FETCH_TRI_INDEX: begin
-                if (triIdxValid) begin
-                    nextState = FETCH_TRI_NODE;
+            SEND_TRI_INDEX_REQ: begin
+                if (lsu_mem_if.req_data.req_ready) begin
+                    nextState = WAIT_TRI_INDEX_RSP;
                 end
                 // Wait for memory to return the triangle index
                 else begin
-                    nextState = FETCH_TRI_INDEX;
+                    nextState = SEND_TRI_INDEX_REQ;
                 end
             end
-            FETCH_TRI_NODE: begin
-                if (triNodeValid) begin
+            WAIT_TRI_INDEX_RSP: begin
+                if (lsu_mem_if.req_data.rsp_valid) begin
+                    nextState = SEND_TRI_NODE_L_REQ;
+                end
+                // Wait for memory to return the triangle index
+                else begin
+                    nextState = WAIT_TRI_INDEX_RSP;
+                end
+            end
+            SEND_TRI_NODE_L_REQ: begin
+                if (lsu_mem_if.req_data.req_ready) begin
+                    nextState = WAIT_TRI_NODE_L_RSP;
+                end
+                // Wait for memory to return the triangle node lower bits
+                else begin
+                    nextState = SEND_TRI_NODE_L_REQ;
+                end
+            end
+            WAIT_TRI_NODE_L_RSP: begin
+                if (lsu_mem_if.req_data.rsp_valid) begin
+                    nextState = SEND_TRI_NODE_H_REQ;
+                end
+                // Wait for memory to return the triangle node higher bits
+                else begin
+                    nextState = WAIT_TRI_NODE_L_RSP;
+                end
+            end
+            SEND_TRI_NODE_H_REQ: begin
+                if (lsu_mem_if.req_data.req_ready) begin
+                    nextState = WAIT_TRI_NODE_H_RSP;
+                end
+                // Wait for memory to return the triangle node higher bits
+                else begin
+                    nextState = SEND_TRI_NODE_H_REQ;
+                end
+            end
+            WAIT_TRI_NODE_H_RSP: begin
+                if (lsu_mem_if.req_data.rsp_valid) begin
                     nextState = INTERSECT_TRIANGLE;
                 end
-                // Wait for memory to return the triangle node
+                // Wait for memory to return the triangle node higher bits
                 else begin
-                    nextState = FETCH_TRI_NODE;
+                    nextState = WAIT_TRI_NODE_H_RSP;
                 end
             end
             INTERSECT_TRIANGLE: begin
@@ -186,20 +233,91 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
         end
     end
 
-    // Get memory address of next fetch based on current state
-    reg [ADDR_BITS-1:0] mem_unit_addr;
+    // LSU interface logic
     always @ (*) begin
-        if (state == FETCH_BVH_NODE) begin
-            mem_unit_addr = bvhBaseAddr + nextBvhIndex << $CLOG2(BVH_NODE_BITS);
-        end
-        else if (state == FETCH_TRI_INDEX) begin
-            mem_unit_addr = triIdxBaseAddr + (triIndexBuffer << 2);
-        end
-        else if (state == FETCH_TRI_NODE) begin
-            mem_unit_addr = triBaseAddr + (triBuffer << 3);
-        end
-    end
-    
+        case (state)
+            SEND_BVH_NODE_REQ: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b1;
+                // Request data interface values
+                lsu_mem_if.req_data.rw = 1'b0;
+                lsu_mem_if.req_data.mask = 1'b1;
+                lsu_mem_if.req_data.byteen = 1'b1;
+                lsu_mem_if.req_data.addr = bvhBaseAddr + nextBvhIndex << $CLOG2(BVH_NODE_BITS);
+                lsu_mem_if.req_data.atype = 2'b00;
+                lsu_mem_if.req_data.tag = 2'b00;
+            end
+            WAIT_BVH_NODE_RSP: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            RECV_BVH_NODE_RSP: begin
+                // Request data valid
+                lsu_mem_if.rsp_ready = 1'b1;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            SEND_TRI_INDEX_REQ: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b1;
+                 // Request data interface values
+                lsu_mem_if.req_data.rw = 1'b0;
+                lsu_mem_if.req_data.mask = 1'b1;
+                lsu_mem_if.req_data.byteen = 1'b1;
+                lsu_mem_if.req_data.addr = triIdxBaseAddr + (triIndexBuffer << 2);;
+                lsu_mem_if.req_data.atype = 2'b00;
+                lsu_mem_if.req_data.tag = 2'b00;
+            end
+            WAIT_TRI_INDEX_RSP: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            SEND_TRI_NODE_L_REQ: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b1;
+                 // Request data interface values
+                lsu_mem_if.req_data.rw = 1'b0;
+                lsu_mem_if.req_data.mask = 1'b1;
+                lsu_mem_if.req_data.byteen = 1'b1;
+                lsu_mem_if.req_data.addr = triBaseAddr + (triBuffer << 3);
+                lsu_mem_if.req_data.atype = 2'b00;
+                lsu_mem_if.req_data.tag = 2'b00;
+            end
+            WAIT_TRI_NODE_L_RSP: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            SEND_TRI_NODE_H_REQ: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b1;
+                 // Request data interface values
+                lsu_mem_if.req_data.rw = 1'b0;
+                lsu_mem_if.req_data.mask = 1'b1;
+                lsu_mem_if.req_data.byteen = 1'b1;
+                lsu_mem_if.req_data.addr = triBaseAddr + (triBuffer << 3) + `DATA_SIZE;
+                lsu_mem_if.req_data.atype = 2'b00;
+                lsu_mem_if.req_data.tag = 2'b00;
+            end
+            WAIT_TRI_NODE_H_RSP: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            default: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+        endcase
+    end   
 
     VX_ti_stack  ti_bvh_index_stack (
         .clk            (clk),
@@ -211,62 +329,11 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
         .empty          (stackEmpty),
         .full           ()
     );
-
-    VX_ti_mem ti_mem (
-        .clk          (clk),
-        .reset        (mem_reset),
-
-        .start        (mem_unit_start),
-        .mem_addr     (mem_unit_addr),
-        .mem_size     (mem_unit_size),
-
-
-        .mem_data     (mem_unit_data),
-        .valid_out    (mem_unit_valid),
-        .ready_out    (mem_unit_ready)
-    );
-
-
     
     reg isTriangleIntersect;
     reg [3*32-1:0] aabbMin, aabbMax, triV0, triV1, triV2, rayOrigin, rayDir;
     wire intersects;
 
-    always @ (posedge clk) begin
-        // Reset to 0 by default
-        if (state == POP_STACK) begin
-            isTriangleIntersect = 0;
-        end
-        // If we reach the FETCH_TRI_INDEX state, 
-        // we know we're going to intersect a triangle
-        // in the INTERSECT state, so latch a 1.
-        if (state == FETCH_TRI_INDEX) begin
-            isTriangleIntersect = 1;
-        end
-
-    end
-
-    // TODO: separate units for AABB and triangle intersection?
-    // or keep the same interface, with isTriangleIntersect as a control signal
-    VX_ti_intersect ti_intersect (
-        .clk            (clk),
-        .reset          (reset),
-        .ready          (intersectReady),
-        .isTriangle     (isTriangleIntersect)
-        .aabb_min       (aabbMin),
-        .aabb_max       (aabbMax),
-        .tri_v0         (triV0),
-        .tri_v1         (triV1),
-        .tri_v2         (triV2),
-        .ray_origin     (rayOrigin),
-        .ray_dir        (rayDir),
-        .valid          (intersectValid),
-        .intersects     (intersects),
-        .distance       (intersectDistance)
-        .hit_point_u    (intersectHitPointU),
-        .hit_point_v    (intersectHitPointV)
-        .hit_index      (intersectHitIndex)
-    );
 
    
 

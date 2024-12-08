@@ -20,6 +20,8 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
     input wire              clk,
     input wire              reset,
 
+    VX_lsu_mem_if.master    sfu_mem_if [`NUM_SFU_LANES],
+
 `ifdef PERF_ENABLE
     VX_mem_perf_if.slave    mem_perf_if,
     VX_pipeline_perf_if.slave pipeline_perf_if,
@@ -312,15 +314,16 @@ module VX_sfu_unit import VX_gpu_pkg::*; #(
 
     `RESET_RELAY (ti_reset, reset);
 
-    VX_ti_agent #(
+    VX_ti_unit #(
         .CORE_ID   (CORE_ID),
         .NUM_LANES (NUM_LANES)
-    ) ti_agent (
+    ) ti_unit (
         .clk        (clk),
         .reset      (ti_reset),
         .execute_if (ti_execute_if),
-        .ti_csr_if  (ti_csr_if),
         .ti_bus_if  (ti_bus_if),
+        .ti_csr_if  (ti_csr_if),
+        .lsu_mem_if (sfu_mem_if),
         .commit_if  (ti_commit_if)
     );
 

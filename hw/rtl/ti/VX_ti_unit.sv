@@ -27,7 +27,6 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
 
     // Inputs
     VX_execute_if.slave     ti_execute_if,
-    VX_ti_bus_if.slave     ti_bus_if,
 
     // CSR interface
     VX_sfu_csr_if.slave     ti_csr_if,
@@ -37,6 +36,7 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
 
     // Outputs
     VX_commit_if.master     ti_commit_if
+    // TODO: write to commit interface
 );
 
     localparam BVH_NODE_BYTES  = 32;
@@ -78,26 +78,29 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
 
     // T&I Unit States
     localparam IDLE = 0;
-    localparam PUSH_STACK = 1;
-    localparam POP_STACK = 2;
-    localparam SEND_BVH_NODE_REQ = 3;
-    localparam WAIT_BVH_NODE_RSP = 4;
-    localparam RECV_BVH_NODE_RSP= 5;
-    localparam INTERSECT_BOUNDING_BOX = 6;
-    localparam HIT_BOUNDING_BOX = 7;
-    localparam SEND_TRI_INDEX_REQ = 8;
-    localparam WAIT_TRI_INDEX_RSP = 9;
-    localparam RECV_TRI_INDEX_RSP = 10;
-    localparam SEND_TRI_NODE_L_REQ = 11;
-    localparam WAIT_TRI_NODE_L_RSP = 12;
-    localparam RECV_TRI_NODE_L_RSP = 13;
-    localparam SEND_TRI_NODE_H_REQ = 14;
+    localparam SEND_RAY_REQ = 1;
+    localparam WAIT_RAY_RSP = 2;
+    localparam RECV_RAY_RSP = 3;
+    localparam PUSH_STACK = 4;
+    localparam POP_STACK = 5;
+    localparam SEND_BVH_NODE_REQ = 6;
+    localparam WAIT_BVH_NODE_RSP = 7;
+    localparam RECV_BVH_NODE_RSP= 8;
+    localparam INTERSECT_BOUNDING_BOX = 9;
+    localparam HIT_BOUNDING_BOX = 10;
+    localparam SEND_TRI_INDEX_REQ = 11;
+    localparam WAIT_TRI_INDEX_RSP = 12;
+    localparam RECV_TRI_INDEX_RSP = 13;
+    localparam SEND_TRI_NODE_L_REQ = 14;
     localparam WAIT_TRI_NODE_L_RSP = 15;
     localparam RECV_TRI_NODE_L_RSP = 16;
-    localparam INTERSECT_TRIANGLE = 17;
-    localparam HIT_TRIANGLE = 18;
-    localparam MISS = 19;
-    localparam STACK_EMPTY = 20;
+    localparam SEND_TRI_NODE_H_REQ = 17;
+    localparam WAIT_TRI_NODE_L_RSP = 18;
+    localparam RECV_TRI_NODE_L_RSP = 19;
+    localparam INTERSECT_TRIANGLE = 20;
+    localparam HIT_TRIANGLE = 21;
+    localparam MISS = 22;
+    localparam STACK_EMPTY = 23;
 
     reg [4:0] state, nextState;
     wire stackEmpty;
@@ -114,13 +117,32 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
         case (state)
             IDLE: begin
                 // If there's a valid request, push the initial BVH index onto the stack
-                if (ti_bus_if.valid) begin
-                    nextState = PUSH_STACK;
+                if (ti_execute_if.valid) begin
+                    nextState = SEND_RAY_REQ;
                 end
                 // Spin in IDLE state until a valid request is received
                 else begin
                     nextState = IDLE;
                 end
+            end
+            SEND_RAY_REQ: begin
+            if (lsu_mem_if.req_data.req_ready) begin
+                    nextState = WAIT_RAY_RSP;
+            end
+            // Wait for memory to return the triangle index
+            else begin
+                nextState = SEND_RAY_REQ;
+            end
+            WAIT_RAY_RSP: begin
+                if (lsu_mem_if.req_data.rsp_valid) begin
+                    nextState = RECV_RAY_RSP;
+                end
+                else begin
+                    nextState = WAIT_RAY_RSP;
+                end
+            end
+            RECV_RAY_RSP: begin
+                nextState = PUSH_STACK;
             end
             PUSH_STACK: begin
                 nextState = POP_STACK;
@@ -143,11 +165,14 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             end
             WAIT_BVH_NODE_RSP: begin
                 if (lsu_mem_if.req_data.rsp_valid) begin
-                    nextState = INTERSECT_BOUNDING_BOX;
+                    nextState = RECV_BVH_NODE_RSP;
                 end
                 else begin
                     nextState = WAIT_BVH_NODE_RSP;
                 end
+            end
+            RECV_BVH_NODE_RSP: begin
+                nextState = INTERSECT_BOUNDING_BOX;
             end
             INTERSECT_BOUNDING_BOX: begin
                 wire isLeafNode;
@@ -172,12 +197,15 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             end
             WAIT_TRI_INDEX_RSP: begin
                 if (lsu_mem_if.req_data.rsp_valid) begin
-                    nextState = SEND_TRI_NODE_L_REQ;
+                    nextState = RECV_TRI_INDEX_RSP;
                 end
                 // Wait for memory to return the triangle index
                 else begin
                     nextState = WAIT_TRI_INDEX_RSP;
                 end
+            end
+            RECV_TRI_INDEX_RSP: begin
+                nextState = SEND_TRI_NODE_L_REQ;
             end
             SEND_TRI_NODE_L_REQ: begin
                 if (lsu_mem_if.req_data.req_ready) begin
@@ -190,12 +218,15 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             end
             WAIT_TRI_NODE_L_RSP: begin
                 if (lsu_mem_if.req_data.rsp_valid) begin
-                    nextState = SEND_TRI_NODE_H_REQ;
+                    nextState = RECV_TRI_NODE_L_RSP;
                 end
                 // Wait for memory to return the triangle node higher bits
                 else begin
                     nextState = WAIT_TRI_NODE_L_RSP;
                 end
+            end
+            RECV_TRI_NODE_L_RSP: begin
+                nextState = SEND_TRI_NODE_H_REQ;
             end
             SEND_TRI_NODE_H_REQ: begin
                 if (lsu_mem_if.req_data.req_ready) begin
@@ -208,12 +239,15 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             end
             WAIT_TRI_NODE_H_RSP: begin
                 if (lsu_mem_if.req_data.rsp_valid) begin
-                    nextState = INTERSECT_TRIANGLE;
+                    nextState = RECV_TRI_NODE_H_RSP;
                 end
                 // Wait for memory to return the triangle node higher bits
                 else begin
                     nextState = WAIT_TRI_NODE_H_RSP;
                 end
+            end
+            RECV_TRI_NODE_H_RSP: begin
+                nextState = INTERSECT_TRIANGLE;
             end
             INTERSECT_TRIANGLE: begin
                 nextState = (hitTriangle == 1'b1 ? HIT_TRIANGLE : MISS);
@@ -242,9 +276,34 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     // LSU interface logic
     always @ (*) begin
         case (state)
+            SEND_RAY_REQ: begin
+                // Request data valid
+                lsu_mem_if.req_valid = 1'b1;
+                lsu_mem_if.rsp_ready = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data.rw = 1'b0;
+                lsu_mem_if.req_data.mask = 1'b1;
+                lsu_mem_if.req_data.byteen = 1'b1;
+                lsu_mem_if.req_data.addr = ti_execute_if.rs1_data[0];
+                lsu_mem_if.req_data.atype = 2'b00;
+                lsu_mem_if.req_data.tag = 2'b00;
+            end
+            WAIT_RAY_RSP: begin
+                // Request data invalid, waiting for response
+                lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            RECV_RAY_RSP: begin
+                // Acknowledge response
+                lsu_mem_if.rsp_ready = 1'b1;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
             SEND_BVH_NODE_REQ: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b1;
+                lsu_mem_if.rsp_ready = 1'b0;
                 // Request data interface values
                 lsu_mem_if.req_data.rw = 1'b0;
                 lsu_mem_if.req_data.mask = 1'b1;
@@ -254,13 +313,13 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 lsu_mem_if.req_data.tag = 2'b00;
             end
             WAIT_BVH_NODE_RSP: begin
-                // Request data valid
+                // Request data invalid, waiting for response
                 lsu_mem_if.req_valid = 1'b0;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end
             RECV_BVH_NODE_RSP: begin
-                // Request data valid
+                // Acknowledge response
                 lsu_mem_if.rsp_ready = 1'b1;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
@@ -268,6 +327,7 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             SEND_TRI_INDEX_REQ: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b1;
+                lsu_mem_if.rsp_ready = 1'b0;
                  // Request data interface values
                 lsu_mem_if.req_data.rw = 1'b0;
                 lsu_mem_if.req_data.mask = 1'b1;
@@ -277,14 +337,21 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 lsu_mem_if.req_data.tag = 2'b00;
             end
             WAIT_TRI_INDEX_RSP: begin
-                // Request data valid
+                // Request data invalid, waiting for response
                 lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            RECV_TRI_INDEX_RSP: begin
+                // Acknowledge response
+                lsu_mem_if.rsp_ready = 1'b1;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end
             SEND_TRI_NODE_L_REQ: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b1;
+                lsu_mem_if.rsp_ready = 1'b0;
                  // Request data interface values
                 lsu_mem_if.req_data.rw = 1'b0;
                 lsu_mem_if.req_data.mask = 1'b1;
@@ -294,14 +361,21 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 lsu_mem_if.req_data.tag = 2'b00;
             end
             WAIT_TRI_NODE_L_RSP: begin
-                // Request data valid
+                // Request data invalid, waiting for response
                 lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            RECV_TRI_NODE_L_RSP: begin
+                // Acknowledge response
+                lsu_mem_if.rsp_ready = 1'b1;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end
             SEND_TRI_NODE_H_REQ: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b1;
+                lsu_mem_if.rsp_ready = 1'b0;
                  // Request data interface values
                 lsu_mem_if.req_data.rw = 1'b0;
                 lsu_mem_if.req_data.mask = 1'b1;
@@ -311,14 +385,21 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 lsu_mem_if.req_data.tag = 2'b00;
             end
             WAIT_TRI_NODE_H_RSP: begin
-                // Request data valid
+                // Request data invalid, waiting for response
                 lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            RECV_TRI_NODE_H_RSP: begin
+                // Acknowledge response
+                lsu_mem_if.rsp_ready = 1'b1;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end
             default: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b0;
+                lsu_mem_if.rsp_ready = 1'b0;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end

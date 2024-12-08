@@ -291,7 +291,7 @@
 
 // Number of SFU units
 `ifndef NUM_SFU_LANES
-`define NUM_SFU_LANES   `NUM_THREADS
+`define NUM_SFU_LANES   1
 `endif
 `ifndef NUM_SFU_BLOCKS
 `define NUM_SFU_BLOCKS  1

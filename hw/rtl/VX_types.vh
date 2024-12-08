@@ -300,7 +300,7 @@
 `define VX_CSR_TEX_COUNT                (`VX_CSR_TEX_END-`VX_CSR_TEX_BEGIN)
 
 // Ray tracing unit CSRs
-`define VX_CSR_RT_BEGIN                 `VX_CSR_TEX_END
+`define VX_CSR_RT_BEGIN                 12'hBC0
 `define VX_CSR_RT_TRI_ADDR              (`VX_CSR_RT_BEGIN+0)
 `define VX_CSR_RT_BVH_ADDR              (`VX_CSR_RT_BEGIN+1)
 `define VX_CSR_RT_TRI_IDX_ADDR          (`VX_CSR_RT_BEGIN+2)

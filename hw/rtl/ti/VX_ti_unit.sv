@@ -92,8 +92,8 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     localparam WAIT_TRI_NODE_L_RSP = 12;
     localparam RECV_TRI_NODE_L_RSP = 13;
     localparam SEND_TRI_NODE_H_REQ = 14;
-    localparam WAIT_TRI_NODE_L_RSP = 15;
-    localparam RECV_TRI_NODE_L_RSP = 16;
+    localparam WAIT_TRI_NODE_H_RSP = 15;
+    localparam RECV_TRI_NODE_H_RSP = 16;
     localparam INTERSECT_TRIANGLE = 17;
     localparam HIT_TRIANGLE = 18;
     localparam MISS = 19;
@@ -239,6 +239,32 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
         end
     end
 
+    // Memory storage updates
+    always @ (posedge clk) begin
+        if (reset) begin
+            bvhBuffer <= '0;
+            triIndexBuffer <= '0;
+            triBuffer <= '0;
+        end else begin
+            case (state)
+                RECV_BVH_NODE_RSP: begin
+                    bvhBuffer <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_TRI_INDEX_RSP: begin
+                    triIndexBuffer <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_TRI_NODE_L_RSP: begin
+                    triBuffer[((32<<3)-1):0] <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_TRI_NODE_H_RSP: begin
+                    triBuffer[TRI_NODE_BITS-1:((32<<3)-1)] <= lsu_mem_if.rsp_data.data;
+                end
+                default: begin
+                    
+                end
+            endcase
+    end
+
     // LSU interface logic
     always @ (*) begin
         case (state)
@@ -282,6 +308,12 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end
+            RECV_TRI_INDEX_RSP: begin
+                // Request data valid
+                lsu_mem_if.rsp_ready = 1'b1;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
             SEND_TRI_NODE_L_REQ: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b1;
@@ -299,6 +331,12 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end
+            RECV_TRI_NODE_L_RSP: begin
+                // Request data valid
+                lsu_mem_if.rsp_ready = 1'b1;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
             SEND_TRI_NODE_H_REQ: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b1;
@@ -313,6 +351,12 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             WAIT_TRI_NODE_H_RSP: begin
                 // Request data valid
                 lsu_mem_if.req_valid = 1'b0;
+                // Request data interface values
+                lsu_mem_if.req_data = '0;
+            end
+            RECV_TRI_NODE_H_RSP: begin
+                // Request data valid
+                lsu_mem_if.rsp_ready = 1'b1;
                 // Request data interface values
                 lsu_mem_if.req_data = '0;
             end

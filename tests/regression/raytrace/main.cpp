@@ -343,7 +343,7 @@ int main(int argc, char *argv[]) {
     return errors;
   }*/
 
-  std::cout << "PASSED!" << std::endl;
+  //std::cout << "PASSED!" << std::endl;
 
   return 0;
 }

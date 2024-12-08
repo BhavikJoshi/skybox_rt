@@ -50,7 +50,9 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 	ray.O = camPos;
 	ray.D = normalize(pixelPos-camPos);
 
+	vx_printf("BVH_CSR_ADDRS: %x", VX_CSR_RT_BVH_ADDR);
 	csr_write(VX_CSR_RT_BVH_ADDR,bvh_addr);
+	vx_printf("Write succesful\n");
 	csr_write(VX_CSR_RT_TRI_ADDR,tri_addr);
 	csr_write(VX_CSR_RT_TRI_IDX_ADDR,tri_idx_addr);
 	vx_bvh_ti((int)&ray);

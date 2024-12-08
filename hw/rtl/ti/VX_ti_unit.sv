@@ -39,10 +39,12 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     // TODO: write to commit interface
 );
 
+    localparam RAY_BYTES = 28;
     localparam BVH_NODE_BYTES  = 32;
     localparam BVH_INDEX_BYTES = 4;
     localparam TRI_INDEX_BYTES = 4;
     localparam TRI_NODE_BYTES  = 48;
+    localparam RAY_BITS = RAY_BYTES << 3;
     localparam BVH_NODE_BITS = BVH_NODE_BYTES << 3;
     localparam BVH_INDEX_BITS = BVH_INDEX_BYTES << 3;
     localparam TRI_INDEX_BITS = TRI_INDEX_BYTES << 3;
@@ -108,6 +110,7 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     reg push;
     reg pop;
     reg [BVH_INDEX_BITS-1:0] nextBvhIndex;
+    reg [RAY_BITS-1:0] rayBuffer;
     reg [BVH_NODE_BITS-1:0] bvhBuffer;
     reg [TRI_INDEX_BITS-1:0] triIndexBuffer;
     reg [TRI_NODE_BITS-1:0] triBuffer;
@@ -270,6 +273,36 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
             state <= IDLE;
         end else begin
             state <= nextState;
+        end
+    end
+
+    // Memory storage updates
+    always @ (posedge clk) begin
+        if (reset) begin
+            bvhBuffer <= '0;
+            triIndexBuffer <= '0;
+            triBuffer <= '0;
+        end else begin
+            case (state)
+                RECV_RAY_RSP: begin
+                   rayBuffer <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_BVH_NODE_RSP: begin
+                    bvhBuffer <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_TRI_INDEX_RSP: begin
+                    triIndexBuffer <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_TRI_NODE_L_RSP: begin
+                    triBuffer[((32<<3)-1):0] <= lsu_mem_if.rsp_data.data;
+                end
+                RECV_TRI_NODE_H_RSP: begin
+                    triBuffer[TRI_NODE_BITS-1:((32<<3)-1)] <= lsu_mem_if.rsp_data.data;
+                end
+                default: begin
+                    
+                end
+            endcase
         end
     end
 

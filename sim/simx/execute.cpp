@@ -1498,11 +1498,20 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
         Word bvhNode_addr = this->get_csr(VX_CSR_RT_BVH_ADDR, thread_start, wid);
         Word triIdx_addr = this->get_csr(VX_CSR_RT_TRI_IDX_ADDR,  thread_start, wid);
         Word tri_addr = this->get_csr(VX_CSR_RT_TRI_ADDR,  thread_start, wid);
+        std::cout << "BVH Node Addr: " << bvhNode_addr << std::endl;
+        std::cout << "Tri Index Addr: " << triIdx_addr << std::endl;
+        std::cout << "Tri Addr: " << tri_addr << std::endl;
+        std::cout << "Ray Addr[0]:" << rsdata[thread_start][0].i << std::endl;
+        ray_tracing::BVHNode node;
+        this->dcache_read(&node, bvhNode_addr, sizeof(ray_tracing::BVHNode));
+        std::cout << "Read BVH Node successful" << std::endl;
+        std::cout << "AABB Min: " << node.aabbMin[0] << " " << node.aabbMin[1] << " " << node.aabbMin[2] << std::endl;
         for (uint32_t t = thread_start; t < num_threads; ++t) {
           if (!warp.tmask.test(t)) continue;
           // Perform per-thread T&I instruction
           ray_tracing::Ray ray;
           this->dcache_read(&ray, rsdata[t][0].i, sizeof(ray_tracing::Ray));
+          std::cout << "Read ray" << std::endl;
           float distance = 1e30;
           std::stack<uint32_t> bvhStack;
           bvhStack.push(0);

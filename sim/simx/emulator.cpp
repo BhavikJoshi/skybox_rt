@@ -553,7 +553,7 @@ Word Emulator::get_csr(uint32_t addr, uint32_t tid, uint32_t wid) {
   #ifdef EXT_RT_ENABLE
     if (addr >= VX_CSR_RT_BEGIN
      && addr < VX_CSR_RT_END) {
-      return warps_.at(wid).csrs.at(tid).at(addr);
+      return warps_.at(wid).csrs.at(tid)[addr];
     } else
   #endif
     {
@@ -608,7 +608,6 @@ void Emulator::set_csr(uint32_t addr, Word value, uint32_t tid, uint32_t wid) {
     if (addr >= VX_CSR_RT_BEGIN
      && addr < VX_CSR_RT_END) {
       warps_.at(wid).csrs.at(tid)[addr] = value;
-      std::cout << "CSR write: ray trace CSR addr=0x" << std::hex << addr << ", value=0x" << value << std::dec << std::endl;
      } else
   #endif
     {

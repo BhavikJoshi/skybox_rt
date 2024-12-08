@@ -68,6 +68,35 @@ module VX_execute import VX_gpu_pkg::*; #(
     VX_commit_csr_if.slave  commit_csr_if
 );
 
+    VX_lsu_mem_if #(
+        .NUM_LANES (`NUM_LSU_LANES),
+        .DATA_SIZE (LSU_WORD_SIZE),
+        .TAG_WIDTH (LSU_TAG_WIDTH)
+    ) lmem_bus_srcs_if[2]();
+
+    VX_lsu_mem_if #(
+        .NUM_LANES (`NUM_LSU_LANES),
+        .DATA_SIZE (LSU_WORD_SIZE),
+        .TAG_WIDTH (LSU_TAG_WIDTH+1)
+    ) lmem_bus_dsts_if[1]();
+
+    // `ASSIGN_VX_MEM_BUS_IF(lmem_bus_srcs_if[0], lsu_mem_if)
+    // `ASSIGN_VX_MEM_BUS_IF(lmem_bus_srcs_if[1], sfu_mem_if)
+    `ASSIGN_VX_MEM_BUS_IF(lmem_bus_dst_if, lsu_mem_if)
+
+    VX_lsu_mem_arb #(
+        .NUM_INPUTS  (2),
+        .NUM_OUTPUTS (1),
+        .NUM_LANES   (`NUM_LSU_LANES),
+        .DATA_SIZE   (LSU_WORD_SIZE),
+        .TAG_WIDTH   (LSU_TAG_WIDTH)
+    ) mem_arb (
+        .clk        (clk),
+        .reset      (reset),
+        .bus_in_if  (lmem_bus_srcs_if),
+        .bus_out_if (lmem_bus_dsts_if)
+    );
+
 `ifdef EXT_F_ENABLE
     VX_fpu_csr_if fpu_csr_if[`NUM_FPU_BLOCKS]();
 `endif
@@ -96,7 +125,7 @@ module VX_execute import VX_gpu_pkg::*; #(
         .reset          (lsu_reset),
         .dispatch_if    (dispatch_if[`EX_LSU * `ISSUE_WIDTH +: `ISSUE_WIDTH]),
         .commit_if      (commit_if[`EX_LSU * `ISSUE_WIDTH +: `ISSUE_WIDTH]),
-        .lsu_mem_if     (lsu_mem_if)
+        .lsu_mem_if     (lmem_bus_srcs_if[0])
     );
 
 `ifdef EXT_F_ENABLE
@@ -119,7 +148,8 @@ module VX_execute import VX_gpu_pkg::*; #(
     ) sfu_unit (
         .clk            (clk),
         .reset          (sfu_reset),
-        // TODO: need memory interface and route all the way to ti unit similar to LSU
+
+        .sfu_mem_if     (lmem_bus_srcs_if[1]),
     `ifdef PERF_ENABLE
         .mem_perf_if    (mem_perf_if),
         .pipeline_perf_if (pipeline_perf_if),

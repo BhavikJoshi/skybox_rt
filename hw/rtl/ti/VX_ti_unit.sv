@@ -25,13 +25,18 @@ module VX_ti_unit import VX_gpu_pkg::*; import VX_ti_pkg::*; #(
     input wire clk,
     input wire reset,
 
+    // Inputs
+    VX_execute_if.slave     ti_execute_if,
+    VX_ti_bus_if.slave     ti_bus_if,
 
-    // Memory interface
-    VX_mem_bus_if.master    cache_bus_if [TCACHE_NUM_REQS],
-
+    // CSR interface
+    VX_sfu_csr_if.slave     ti_csr_if,
+    
+    // Memory interface (output request and receive response)
+    VX_lsu_mem_if.master    lsu_mem_if,     
 
     // Outputs
-    VX_ti_bus_if.master     ti_bus_if
+    VX_commit_if.master     ti_commit_if
 );
 
 

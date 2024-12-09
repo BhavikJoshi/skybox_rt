@@ -69,8 +69,16 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 	//float u = csr_read(VX_CSR_RT_HIT_U);
 	//float v = csr_read(VX_CSR_RT_HIT_V);
 	//uint32_t idx = csr_read(VX_CSR_RT_HIT_IDX);
+	if (rays[ray_idx].t == 1e30f){
+		*dst = black;
+	}
+	else{
+		int v = ((rays[ray_idx].t)*(255/50));
+		//vx_printf("dist %f v: %d , color: %x \n",rays[ray_idx].t,v,  (black | (v << 16)) | (black | (v << 8)) | v);
+		*dst = (black | (v << 16)) | (black | (v << 8) ) | v;
+	}
 
-	*dst = rays[ray_idx].t == 1e30f ? black : white;
+	//*dst = rays[ray_idx].t == 1e30f ? black : white;
 }
 
 int main() {

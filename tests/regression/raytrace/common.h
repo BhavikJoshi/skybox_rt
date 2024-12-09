@@ -19,6 +19,7 @@ typedef struct {
   uint64_t tri_addr;
   uint64_t triIdx_addr;
   uint64_t cbuf_addr; 
+  uint64_t ray_addr;
 } kernel_arg_t;
 
 #endif

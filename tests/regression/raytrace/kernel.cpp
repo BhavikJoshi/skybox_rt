@@ -42,26 +42,23 @@ void kernel_body(kernel_arg_t* __UNIFORM__ arg) {
 	auto bvh_addr = reinterpret_cast<BVHNode*>(arg->bvh_addr);
 	auto tri_idx_addr = reinterpret_cast<uint32_t*>(arg->triIdx_addr);
 	auto dst = reinterpret_cast<uint32_t*>(arg->cbuf_addr + col * arg->cbuf_stride + row * arg->cbuf_pitch );
+	auto rays = reinterpret_cast<Ray*>(arg->ray_addr);
 	float dst_width = arg->dst_width;
 	float dst_height = arg->dst_height;
-	float3 pixelPos = p0 + (p1 - p0) * (col / dst_height) + (p2 - p0) * (row / dst_width);
-
-	Ray ray;
-	ray.O = camPos;
-	ray.D = normalize(pixelPos-camPos);
+	
 
 	csr_write(VX_CSR_RT_BVH_ADDR, bvh_addr);
 	csr_write(VX_CSR_RT_TRI_ADDR, tri_addr);
 	csr_write(VX_CSR_RT_TRI_IDX_ADDR, tri_idx_addr);
-	vx_bvh_ti((int)&ray);
-	ray.t = csr_read(VX_CSR_RT_HIT_DIST);
+	vx_bvh_ti((int)&rays[row+100*col]);
+	rays[row+100*col].t = csr_read(VX_CSR_RT_HIT_DIST);
 
 	//for texture/barycentric coordinates of intersection
 	//float u = csr_read(VX_CSR_RT_HIT_U);
 	//float v = csr_read(VX_CSR_RT_HIT_V);
 	//uint32_t idx = csr_read(VX_CSR_RT_HIT_IDX);
 
-	*dst = ray.t == 1e30f ? black : white;
+	*dst = rays[row+100*col].t == 1e30f ? black : white;
 }
 
 int main() {

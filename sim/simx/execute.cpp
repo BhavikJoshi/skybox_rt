@@ -1501,7 +1501,7 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
         std::cout << "BVH Node Addr: " << bvhNode_addr << std::endl;
         std::cout << "Tri Index Addr: " << triIdx_addr << std::endl;
         std::cout << "Tri Addr: " << tri_addr << std::endl;
-        std::cout << "Ray Addr[0]:" << rsdata[thread_start][0].i << std::endl;
+        std::cout << "Ray Addr[0]:" << thread_start << " " << wid << " " << rsdata[thread_start][0].i << std::endl;
         ray_tracing::BVHNode node;
         this->dcache_read(&node, bvhNode_addr, sizeof(ray_tracing::BVHNode));
         std::cout << "Read BVH Node successful" << std::endl;
@@ -1511,7 +1511,7 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
           // Perform per-thread T&I instruction
           ray_tracing::Ray ray;
           this->dcache_read(&ray, rsdata[t][0].i, sizeof(ray_tracing::Ray));
-          std::cout << "Read ray" << std::endl;
+          std::cout << "Read ray" << t << " " << rsdata[t][0].i << " " << std::endl;
           float distance = 1e30;
           std::stack<uint32_t> bvhStack;
           bvhStack.push(0);
@@ -1538,7 +1538,7 @@ void Emulator::execute(const Instr &instr, uint32_t wid, instr_trace_t *trace) {
             // Push subnodes if not a leaf
             else {
               bvhStack.push(node.leftFirst);
-              bvhStack.push(node.leftFirst);
+              bvhStack.push(node.leftFirst+1);
             }
           }
           this->set_csr(VX_CSR_RT_HIT_DIST, distance, t, wid);

@@ -43,31 +43,6 @@ static void generate_triangles(Tri tri[], int N) {
     }
 }
 
-
-
-float3 camPos(0,0,-18);
-float3 p0( -1, 1, -15 ), p1( 1, 1, -15 ), p2( -1, -1, -15 );
-
-float3 normalize(const float3& v1) {
-
-    // Calculate the magnitude of the difference vector
-    float magnitude = std::sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
-
-    // Check if the magnitude is not zero to avoid division by zero
-    if (magnitude > 0.0f) {
-        // Normalize the difference vector
-        float3 normalized = {
-            v1.x / magnitude,
-            v1.y / magnitude,
-            v1.z / magnitude
-        };
-        return normalized;
-    } else {
-        // Return a zero vector if the magnitude is zero
-        return {0.0f, 0.0f, 0.0f};
-    }
-}
-
 static void UpdateNodeBounds(BVHNode bvhNode[], Tri tri[], uint32_t triIdx[], uint nodeIdx)  {
     BVHNode& node = bvhNode[nodeIdx];
     node.aabbMin = float3(  1e30f );
@@ -191,7 +166,6 @@ vx_buffer_h args_buffer = nullptr;
 vx_buffer_h rays_buffer = nullptr;
 
 kernel_arg_t kernel_arg = {};
-Ray rays[100][100];
 Tri tri[NUM_TRIANGLES];
 uint32_t triIdx [NUM_TRIANGLES];
 BVHNode bvhNode[NUM_TRIANGLES * 2];
@@ -229,9 +203,6 @@ static void parse_args(int argc, char **argv) {
   }
 }
 
-
-
-
 void cleanup() {
   if (device) {
     vx_mem_free(BVH_buffer);
@@ -250,14 +221,6 @@ int main(int argc, char *argv[]) {
   parse_args(argc, argv);
 
   std::srand(50);
-  for(int i = 0; i < 100 ; i++){
-    for(int j = 0 ; j < 100; j++){
-      float3 pixelPos = p0 + (p1 - p0) * (j/ dst_height) + (p2 - p0) * (i / dst_width);
-      rays[i][j].O = camPos;
-      rays[i][j].D = normalize(pixelPos-camPos);
-    }
-  }
-
   // open device connection
   std::cout << "open device connection" << std::endl;
   RT_CHECK(vx_dev_open(&device));
@@ -271,7 +234,10 @@ int main(int argc, char *argv[]) {
   cbuf_stride = 4;
   cbuf_pitch  = dst_width * cbuf_stride;
   cbuf_size   = dst_height * cbuf_pitch;
-  int rays_size = sizeof(Ray) * 100 * 100;
+
+  Ray* rays = new Ray[dst_width * dst_height];
+  
+  int rays_size = sizeof(Ray) * dst_width * dst_height;
   int bvh_size = sizeof(BVHNode) * (2 * NUM_TRIANGLES);
   int tri_size = sizeof(Tri) * NUM_TRIANGLES;
   int triIdx_size = sizeof(uint32_t) * NUM_TRIANGLES;
@@ -291,7 +257,6 @@ int main(int argc, char *argv[]) {
     std::cout << "BVH Structure Correctly Built with N=" << numLeaves << std::endl;  
   }
 
-
   // allocate device memory
   std::cout << "allocate device memory" << std::endl;
   // ray buffer
@@ -310,13 +275,11 @@ int main(int argc, char *argv[]) {
   RT_CHECK(vx_mem_alloc(device, cbuf_size, VX_MEM_WRITE, &color_buffer));
   RT_CHECK(vx_mem_address(color_buffer, &kernel_arg.cbuf_addr));
 
-
   std::cout << "ray_addr = 0x"   << std::hex << kernel_arg.ray_addr  << std::endl;
   std::cout << "bvh_addr = 0x"    << std::hex << kernel_arg.bvh_addr    << std::endl;
   std::cout << "tri_addr = 0x"    << std::hex << kernel_arg.tri_addr    << std::endl;
   std::cout << "triIdx_addr = 0x" << std::hex << kernel_arg.triIdx_addr << std::endl;
   std::cout << "cbuf_addr = 0x"   << std::hex << kernel_arg.cbuf_addr  << std::endl;
-
 
   // upload ray buffer
   {
@@ -381,19 +344,13 @@ int main(int argc, char *argv[]) {
 
   // verify result
   std::cout << "check image for result, no verification code yet" << std::endl;
-  // TODO: add verification code
+  // TODO: add verification code to check image
 
   // cleanup
   std::cout << "cleanup" << std::endl;
   cleanup();
 
-  /*if (errors != 0) {
-    std::cout << "Found " << std::dec << errors << " errors!" << std::endl;
-    std::cout << "FAILED!" << std::endl;
-    return errors;
-  }*/
-
-  //std::cout << "PASSED!" << std::endl;
+  delete [] rays;
 
   return 0;
 }
